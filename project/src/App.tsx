@@ -87,19 +87,19 @@ function App() {
     id: string;
     name: string;
     lastModified: string;
-  }>>([]);
+  }>>(() => {
+    // Load projects from localStorage on initial render
+    const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+    return savedProjects ? JSON.parse(savedProjects) : [];
+  });
 
   // Load saved data from localStorage on initial render
   useEffect(() => {
-    const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
     const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
     const savedCanvasDimensions = localStorage.getItem(STORAGE_KEYS.CANVAS_DIMENSIONS);
     const savedElements = localStorage.getItem(STORAGE_KEYS.ELEMENTS);
     const savedElementStates = localStorage.getItem(STORAGE_KEYS.ELEMENT_STATES);
 
-    if (savedProjects) {
-      setProjects(JSON.parse(savedProjects));
-    }
     if (savedTheme && savedTheme !== theme) {
       toggleTheme(); // Just toggle if the saved theme is different
     }
@@ -137,6 +137,41 @@ function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ELEMENT_STATES, JSON.stringify(elementStates));
   }, [elementStates]);
+
+  // Save project data to localStorage whenever it changes
+  useEffect(() => {
+    const projectData = {
+      elements,
+      elementStates,
+      theme,
+      canvasWidth,
+      canvasHeight,
+      selectedElement,
+      isPreviewMode,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('dragndrop-project', JSON.stringify(projectData));
+  }, [elements, elementStates, theme, canvasWidth, canvasHeight, selectedElement, isPreviewMode]);
+
+  // Load project data from localStorage on initial load
+  useEffect(() => {
+    const savedProject = localStorage.getItem('dragndrop-project');
+    if (savedProject) {
+      try {
+        const projectData = JSON.parse(savedProject);
+        loadDesign(projectData);
+        // Restore editor state
+        if (projectData.selectedElement) {
+          selectElement(projectData.selectedElement);
+        }
+        if (projectData.isPreviewMode) {
+          togglePreviewMode();
+        }
+      } catch (error) {
+        console.error('Error loading saved project:', error);
+      }
+    }
+  }, [loadDesign, selectElement, togglePreviewMode]);
 
   const handleAddTable = () => {
     const newTable = {
