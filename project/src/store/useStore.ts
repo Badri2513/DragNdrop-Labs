@@ -15,6 +15,7 @@ export interface Element {
     disabled?: boolean;
     placeholder?: string;
     required?: boolean;
+    maxLength?: number;
     style?: {
       backgroundColor?: string;
       textColor?: string;
@@ -28,6 +29,9 @@ export interface Element {
       borderColor?: string;
       hoverBackgroundColor?: string;
       hoverTextColor?: string;
+      fontWeight?: string;
+      textAlign?: string;
+      textDecoration?: string;
     };
     layout?: {
       position?: string;

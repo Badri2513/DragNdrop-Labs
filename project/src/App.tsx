@@ -994,6 +994,7 @@ function App() {
                                 onElementStateChange={setElementState}
                                 canvasWidth={canvasWidth}
                                 canvasHeight={canvasHeight}
+                                togglePreviewMode={togglePreviewMode}
                               />
                             </div>
                           </div>
