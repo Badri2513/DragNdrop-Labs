@@ -212,24 +212,31 @@ function App() {
     { type: "container", icon: Group, label: "Container" },
   ];
 
+  // Drag and drop functionality with Enter key handling
   const handleMouseDown = (e: React.MouseEvent, id: string) => {
     if (isPreviewMode) return;
     e.preventDefault();
     e.stopPropagation();
-
+    
     const element = document.getElementById(id);
     if (!element) return;
-
+    
     const rect = element.getBoundingClientRect();
     const canvas = document.getElementById('canvas');
     if (!canvas) return;
-
+    
     const canvasRect = canvas.getBoundingClientRect();
     
     // Get the current position relative to canvas
     const x = rect.left - canvasRect.left;
     const y = rect.top - canvasRect.top;
     
+    // Store initial mouse position in the component, not in the state
+    // You could use a ref for this
+    const mouseStartX = e.clientX;
+    const mouseStartY = e.clientY;
+    
+    // Only include properties that are defined in your type
     setDraggingElement({
       id,
       x,
@@ -239,71 +246,120 @@ function App() {
     });
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!draggingElement) return;
-
-    const element = document.getElementById(draggingElement.id);
-    if (!element) return;
-
-    const canvas = document.getElementById('canvas');
-    if (!canvas) return;
-
-    const canvasRect = canvas.getBoundingClientRect();
-    
-    // Calculate new position based on mouse movement
-    const newX = e.clientX - canvasRect.left - (draggingElement.width / 2);
-    const newY = e.clientY - canvasRect.top - (draggingElement.height / 2);
-
-    // Constrain to canvas bounds
-    const constrainedX = Math.max(0, Math.min(newX, canvasRect.width - draggingElement.width));
-    const constrainedY = Math.max(0, Math.min(newY, canvasRect.height - draggingElement.height));
-
-    // Update element position
+const handleMouseMove = useCallback((e: MouseEvent) => {
+  if (!draggingElement) return;
+  
+  const canvas = document.getElementById('canvas');
+  if (!canvas) return;
+  
+  const canvasRect = canvas.getBoundingClientRect();
+  
+  // Calculate new position based on mouse movement
+  const newX = e.clientX - canvasRect.left - (draggingElement.width / 2);
+  const newY = e.clientY - canvasRect.top - (draggingElement.height / 2);
+  
+  // Constrain to canvas bounds
+  const constrainedX = Math.max(0, Math.min(newX, canvasRect.width - draggingElement.width));
+  const constrainedY = Math.max(0, Math.min(newY, canvasRect.height - draggingElement.height));
+  
+  // Update element position directly in the DOM
+  const element = document.getElementById(draggingElement.id);
+  if (element) {
     element.style.transition = 'none';
     element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
-  }, [draggingElement]);
+  }
+}, [draggingElement]);
 
-  const handleMouseUp = useCallback(() => {
-    if (!draggingElement) return;
-
-    const element = document.getElementById(draggingElement.id);
-    if (element) {
-      // Get current position
-      const rect = element.getBoundingClientRect();
-      const canvas = document.getElementById('canvas');
-      if (canvas) {
-        const canvasRect = canvas.getBoundingClientRect();
-        const x = rect.left - canvasRect.left;
-        const y = rect.top - canvasRect.top;
-        
-        // Snap to grid
-        const gridSize = 10;
-        const snappedX = Math.round(x / gridSize) * gridSize;
-        const snappedY = Math.round(y / gridSize) * gridSize;
-        
-        // Update element position with smooth transition
-        element.style.transition = 'transform 0.2s ease-out';
-        element.style.transform = `translate(${snappedX}px, ${snappedY}px)`;
-        
-        // Update the element's position in the store
-        updateElementPosition(draggingElement.id, snappedX, snappedY);
-      }
-    }
-
+const handleMouseUp = useCallback(() => {
+  if (!draggingElement) return;
+  
+  const element = document.getElementById(draggingElement.id);
+  if (!element) {
     setDraggingElement(null);
-  }, [draggingElement, updateElementPosition]);
+    return;
+  }
+  
+  const rect = element.getBoundingClientRect();
+  const canvas = document.getElementById('canvas');
+  if (!canvas) {
+    setDraggingElement(null);
+    return;
+  }
+  
+  const canvasRect = canvas.getBoundingClientRect();
+  const x = rect.left - canvasRect.left;
+  const y = rect.top - canvasRect.top;
+  
+  // Snap to grid
+  const gridSize = 10;
+  const snappedX = Math.round(x / gridSize) * gridSize;
+  const snappedY = Math.round(y / gridSize) * gridSize;
+  
+  // Reset the transition for a smooth finish
+  element.style.transition = 'transform 0.1s ease-out';
+  
+  // Update in store
+  updateElementPosition(draggingElement.id, snappedX, snappedY);
+  
+  // Important: Clear the dragging state
+  setDraggingElement(null);
+}, [draggingElement, updateElementPosition]);
 
-  useEffect(() => {
-    if (draggingElement) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
+const handleKeyDown = useCallback((e: KeyboardEvent) => {
+  // Check if we're currently dragging and the Enter key was pressed
+  if (draggingElement && e.key === 'Enter') {
+    const element = document.getElementById(draggingElement.id);
+    if (!element) {
+      setDraggingElement(null);
+      return;
     }
-  }, [draggingElement, handleMouseMove, handleMouseUp]);
+    
+    const rect = element.getBoundingClientRect();
+    const canvas = document.getElementById('canvas');
+    if (!canvas) {
+      setDraggingElement(null);
+      return;
+    }
+    
+    const canvasRect = canvas.getBoundingClientRect();
+    const x = rect.left - canvasRect.left;
+    const y = rect.top - canvasRect.top;
+    
+    // Snap to grid
+    const gridSize = 10;
+    const snappedX = Math.round(x / gridSize) * gridSize;
+    const snappedY = Math.round(y / gridSize) * gridSize;
+    
+    // Reset the transition for a smooth finish
+    element.style.transition = 'transform 0.1s ease-out';
+    
+    // Update in store
+    updateElementPosition(draggingElement.id, snappedX, snappedY);
+    
+    // Clear the dragging state
+    setDraggingElement(null);
+    
+    // Prevent default Enter key behavior
+    e.preventDefault();
+  }
+}, [draggingElement, updateElementPosition]);
 
+// Combined useEffect to handle all event listeners
+useEffect(() => {
+  // Only add listeners when we start dragging
+  if (draggingElement) {
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('keydown', handleKeyDown);
+  }
+  
+  // Cleanup function - ALWAYS remove listeners
+  return () => {
+    window.removeEventListener('mousemove', handleMouseMove);
+    window.removeEventListener('mouseup', handleMouseUp);
+    window.removeEventListener('keydown', handleKeyDown);
+  };
+}, [draggingElement, handleMouseMove, handleMouseUp, handleKeyDown]);
   const handleSnap = (x: number, y: number) => {
     if (!draggingElement) return;
     setDraggingElement({
