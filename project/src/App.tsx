@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
-import PhoneMockup from './components/PhoneMockup';
+import PhoneTypeSelector from './components/PhoneTypeSelector';
+import ComponentTree from './components/ComponentTree';
+import CanvasGuides from './components/CanvasGuides';
 import useStore from './store/useStore';
 
 type ElementType = "button" | "text" | "input" | "table" | "container" | "image" | "card";
@@ -45,10 +47,22 @@ function App() {
     groupElements,
     ungroupElements,
     togglePreviewMode,
-    loadDesign
+    loadDesign,
+    setCanvasDimensions
   } = useStore();
 
-  const [draggingElement, setDraggingElement] = useState<{ id: string; startX: number; startY: number } | null>(null);
+  const [draggingElement, setDraggingElement] = useState<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const [selectedPhoneType, setSelectedPhoneType] = useState({
+    name: 'iPhone 14 Pro',
+    width: 393,
+    height: 852
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -76,17 +90,20 @@ function App() {
 
   const handleDragStart = (e: React.MouseEvent, id: string) => {
     if (isPreviewMode) return;
-    const element = e.currentTarget as HTMLElement;
+    const element = document.getElementById(id);
+    if (!element) return;
+
     const rect = element.getBoundingClientRect();
-    
-    // Calculate the exact cursor position relative to the element
-    const offsetX = e.clientX - rect.left;
-    const offsetY = e.clientY - rect.top;
-    
+    const canvas = element.parentElement;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
     setDraggingElement({
       id,
-      startX: offsetX,
-      startY: offsetY,
+      x: rect.left - canvasRect.left,
+      y: rect.top - canvasRect.top,
+      width: rect.width,
+      height: rect.height,
     });
   };
 
@@ -99,34 +116,34 @@ function App() {
     if (!canvas) return;
 
     const canvasRect = canvas.getBoundingClientRect();
-    const elementRect = element.getBoundingClientRect();
-    
-    // Calculate new position based on exact cursor position
-    let x = e.clientX - canvasRect.left - draggingElement.startX;
-    let y = e.clientY - canvasRect.top - draggingElement.startY;
+    let x = e.clientX - canvasRect.left - draggingElement.width / 2;
+    let y = e.clientY - canvasRect.top - draggingElement.height / 2;
 
-    // Strict boundary constraints
-    const minX = 0;
-    const minY = 0;
-    const maxX = canvasRect.width - elementRect.width;
-    const maxY = canvasRect.height - elementRect.height;
+    // Constrain to canvas bounds
+    x = Math.max(0, Math.min(x, canvasRect.width - draggingElement.width));
+    y = Math.max(0, Math.min(y, canvasRect.height - draggingElement.height));
 
-    // Ensure element stays within canvas bounds
-    x = Math.max(minX, Math.min(x, maxX));
-    y = Math.max(minY, Math.min(y, maxY));
-
-    // Additional checks to prevent any part of the element from leaving the canvas
-    if (x < minX) x = minX;
-    if (y < minY) y = minY;
-    if (x + elementRect.width > canvasRect.width) x = maxX;
-    if (y + elementRect.height > canvasRect.height) y = maxY;
-
-    updateElementPosition(draggingElement.id, x, y);
-  }, [draggingElement, updateElementPosition]);
+    setDraggingElement({
+      ...draggingElement,
+      x,
+      y,
+    });
+  }, [draggingElement]);
 
   const handleDragEnd = useCallback(() => {
+    if (!draggingElement) return;
+    updateElementPosition(draggingElement.id, draggingElement.x, draggingElement.y);
     setDraggingElement(null);
-  }, []);
+  }, [draggingElement, updateElementPosition]);
+
+  const handleSnap = (x: number, y: number) => {
+    if (!draggingElement) return;
+    setDraggingElement({
+      ...draggingElement,
+      x,
+      y,
+    });
+  };
 
   useEffect(() => {
     if (draggingElement) {
@@ -284,7 +301,13 @@ function App() {
 
         <div className="flex gap-4">
           {!isPreviewMode && (
-            <div className="w-64">
+            <div className="w-64 flex flex-col gap-4">
+              <ComponentTree
+                elements={elements}
+                selectedElement={selectedElement}
+                onSelect={selectElement}
+                theme={theme}
+              />
               <div
                 className={`rounded-lg shadow p-4 ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
@@ -346,25 +369,24 @@ function App() {
             }`}
           >
             {isPreviewMode ? (
-              <PhoneMockup>
-                <div className="p-4">
-                  {elements.map((element) => (
-                    <div
-                      key={element.id}
-                      className="mb-4"
-                      style={{
-                        width: element.properties.layout?.width || "100%",
-                      }}
-                    >
-                      <PreviewElement
-                        element={element}
-                        value={elementStates[element.id]}
-                        onChange={(value) => setElementState(element.id, value)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </PhoneMockup>
+              <PhoneTypeSelector
+                selectedType={selectedPhoneType}
+                onSelectType={(type) => {
+                  setSelectedPhoneType(type);
+                  if (type.name !== 'Custom') {
+                    setCanvasDimensions(type.width, type.height);
+                  }
+                }}
+                customWidth={canvasWidth}
+                customHeight={canvasHeight}
+                onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
+                onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
+                elements={elements}
+                elementStates={elementStates}
+                onElementStateChange={setElementState}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+              />
             ) : (
               <div
                 className={`rounded-lg shadow p-4 relative overflow-hidden border-2 border-gray-300 ${
@@ -378,6 +400,14 @@ function App() {
                 }}
                 onClick={handleCanvasClick}
               >
+                <CanvasGuides
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  theme={theme}
+                  elements={elements}
+                  draggingElement={draggingElement || undefined}
+                  onSnap={handleSnap}
+                />
                 {elements.map((element) => (
                   <div
                     key={element.id}
@@ -394,8 +424,12 @@ function App() {
                     }`}
                     style={{
                       position: (element.properties.layout?.position as Position) || "absolute",
-                      left: element.properties.layout?.left || "50%",
-                      top: element.properties.layout?.top || "50%",
+                      left: draggingElement?.id === element.id 
+                        ? `${draggingElement.x}px` 
+                        : element.properties.layout?.left || "50%",
+                      top: draggingElement?.id === element.id 
+                        ? `${draggingElement.y}px` 
+                        : element.properties.layout?.top || "50%",
                       transform: element.properties.layout?.transform || "translate(-50%, -50%)",
                       width: element.properties.layout?.width || "fit-content",
                       height: element.properties.layout?.height || "auto",
