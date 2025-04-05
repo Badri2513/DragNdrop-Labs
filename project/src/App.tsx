@@ -22,6 +22,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautif
 import StyleEditor from './components/StyleEditor';
 import PhoneTypeSelector from './components/PhoneTypeSelector';
 import ComponentTree from './components/ComponentTree';
+import CanvasGuides from './components/CanvasGuides';
 import useStore from './store/useStore';
 
 type ElementType = "button" | "text" | "input" | "table" | "container" | "image" | "card";
@@ -51,7 +52,13 @@ function App() {
     setCanvasDimensions
   } = useStore();
 
-  const [draggingElement, setDraggingElement] = useState<{ id: string; startX: number; startY: number } | null>(null);
+  const [draggingElement, setDraggingElement] = useState<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const [selectedPhoneType, setSelectedPhoneType] = useState({
     name: 'iPhone 14 Pro',
     width: 393,
@@ -85,12 +92,20 @@ function App() {
 
   const handleDragStart = (e: React.MouseEvent, id: string) => {
     if (isPreviewMode) return;
-    const element = e.currentTarget as HTMLElement;
+    const element = document.getElementById(id);
+    if (!element) return;
+
     const rect = element.getBoundingClientRect();
+    const canvas = element.parentElement;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
     setDraggingElement({
       id,
-      startX: e.clientX - rect.left,
-      startY: e.clientY - rect.top,
+      x: rect.left - canvasRect.left,
+      y: rect.top - canvasRect.top,
+      width: rect.width,
+      height: rect.height,
     });
   };
 
@@ -103,22 +118,34 @@ function App() {
     if (!canvas) return;
 
     const canvasRect = canvas.getBoundingClientRect();
-    const elementRect = element.getBoundingClientRect();
-    
-    // Calculate new position
-    let x = e.clientX - canvasRect.left - draggingElement.startX;
-    let y = e.clientY - canvasRect.top - draggingElement.startY;
+    let x = e.clientX - canvasRect.left - draggingElement.width / 2;
+    let y = e.clientY - canvasRect.top - draggingElement.height / 2;
 
     // Constrain to canvas bounds
-    x = Math.max(0, Math.min(x, canvasRect.width - elementRect.width));
-    y = Math.max(0, Math.min(y, canvasRect.height - elementRect.height));
+    x = Math.max(0, Math.min(x, canvasRect.width - draggingElement.width));
+    y = Math.max(0, Math.min(y, canvasRect.height - draggingElement.height));
 
-    updateElementPosition(draggingElement.id, x, y);
-  }, [draggingElement, updateElementPosition]);
+    setDraggingElement({
+      ...draggingElement,
+      x,
+      y,
+    });
+  }, [draggingElement]);
 
   const handleDragEnd = useCallback(() => {
+    if (!draggingElement) return;
+    updateElementPosition(draggingElement.id, draggingElement.x, draggingElement.y);
     setDraggingElement(null);
-  }, []);
+  }, [draggingElement, updateElementPosition]);
+
+  const handleSnap = (x: number, y: number) => {
+    if (!draggingElement) return;
+    setDraggingElement({
+      ...draggingElement,
+      x,
+      y,
+    });
+  };
 
   useEffect(() => {
     if (draggingElement) {
@@ -356,34 +383,12 @@ function App() {
                 customHeight={canvasHeight}
                 onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
                 onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
-              >
-                <div
-                  className={`rounded-lg shadow p-4 relative overflow-hidden ${
-                    theme === "dark" ? "bg-gray-800" : "bg-white"
-                  }`}
-                  style={{
-                    width: `${canvasWidth}px`,
-                    height: `${canvasHeight}px`,
-                  }}
-                >
-                  {elements.map((element) => (
-                    <div
-                      key={element.id}
-                      className="mb-4"
-                      style={{
-                        width: element.properties.layout?.width || "100%",
-                        textAlign: element.properties.layout?.alignment || "left",
-                      }}
-                    >
-                      <PreviewElement
-                        element={element}
-                        value={elementStates[element.id]}
-                        onChange={(value) => setElementState(element.id, value)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </PhoneTypeSelector>
+                elements={elements}
+                elementStates={elementStates}
+                onElementStateChange={setElementState}
+                canvasWidth={canvasWidth}
+                canvasHeight={canvasHeight}
+              />
             ) : (
               <div
                 className={`rounded-lg shadow p-4 relative overflow-hidden ${
@@ -395,6 +400,14 @@ function App() {
                 }}
                 onClick={handleCanvasClick}
               >
+                <CanvasGuides
+                  width={canvasWidth}
+                  height={canvasHeight}
+                  theme={theme}
+                  elements={elements}
+                  draggingElement={draggingElement || undefined}
+                  onSnap={handleSnap}
+                />
                 {elements.map((element) => (
                   <div
                     key={element.id}
@@ -411,8 +424,12 @@ function App() {
                     }`}
                     style={{
                       position: (element.properties.layout?.position as Position) || "absolute",
-                      left: element.properties.layout?.left || "50%",
-                      top: element.properties.layout?.top || "50%",
+                      left: draggingElement?.id === element.id 
+                        ? `${draggingElement.x}px` 
+                        : element.properties.layout?.left || "50%",
+                      top: draggingElement?.id === element.id 
+                        ? `${draggingElement.y}px` 
+                        : element.properties.layout?.top || "50%",
                       transform: element.properties.layout?.transform || "translate(-50%, -50%)",
                       width: "fit-content",
                       cursor: draggingElement?.id === element.id ? "grabbing" : "grab",

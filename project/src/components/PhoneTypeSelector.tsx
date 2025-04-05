@@ -1,4 +1,5 @@
 import React from 'react';
+import { Smartphone } from 'lucide-react';
 
 interface PhoneType {
   name: string;
@@ -6,14 +7,29 @@ interface PhoneType {
   height: number;
 }
 
-const phoneTypes: PhoneType[] = [
-  { name: 'iPhone 14 Pro', width: 393, height: 852 },
-  { name: 'iPhone 14', width: 390, height: 844 },
-  { name: 'iPhone SE', width: 375, height: 667 },
-  { name: 'Samsung Galaxy S23', width: 393, height: 852 },
-  { name: 'Google Pixel 7', width: 412, height: 915 },
-  { name: 'Custom', width: 0, height: 0 }
-];
+interface Element {
+  id: string;
+  type: string;
+  properties: {
+    layout?: {
+      left?: string;
+      top?: string;
+      width?: string;
+      height?: string;
+      position?: string;
+      transform?: string;
+      alignment?: string;
+    };
+    style?: {
+      backgroundColor?: string;
+      color?: string;
+      padding?: string;
+      borderRadius?: string;
+      fontSize?: string;
+    };
+    text?: string;
+  };
+}
 
 interface PhoneTypeSelectorProps {
   selectedType: PhoneType;
@@ -22,8 +38,21 @@ interface PhoneTypeSelectorProps {
   customHeight: number;
   onCustomWidthChange: (width: number) => void;
   onCustomHeightChange: (height: number) => void;
-  children: React.ReactNode;
+  elements: Element[];
+  elementStates: Record<string, string>;
+  onElementStateChange: (id: string, value: string) => void;
+  canvasWidth: number;
+  canvasHeight: number;
 }
+
+const phoneTypes: PhoneType[] = [
+  { name: 'iPhone 14 Pro', width: 393, height: 852 },
+  { name: 'iPhone 14', width: 390, height: 844 },
+  { name: 'iPhone SE', width: 375, height: 667 },
+  { name: 'Samsung S23', width: 360, height: 780 },
+  { name: 'Google Pixel 7', width: 412, height: 915 },
+  { name: 'Custom', width: 0, height: 0 },
+];
 
 const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
   selectedType,
@@ -32,72 +61,182 @@ const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
   customHeight,
   onCustomWidthChange,
   onCustomHeightChange,
-  children
+  elements,
+  elementStates,
+  onElementStateChange,
+  canvasWidth,
+  canvasHeight,
 }) => {
-  return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="flex flex-col gap-4 p-4 w-full max-w-md">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">Device Type:</label>
-          <select
-            className="flex-1 p-2 border rounded"
-            value={selectedType.name}
-            onChange={(e) => {
-              const type = phoneTypes.find(t => t.name === e.target.value);
-              if (type) onSelectType(type);
-            }}
-          >
-            {phoneTypes.map((type) => (
-              <option key={type.name} value={type.name}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        </div>
+  const renderElement = (element: Element) => {
+    const layout = element.properties.layout || {};
+    const style = element.properties.style || {};
 
-        {selectedType.name === 'Custom' && (
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium">Width (px):</label>
-              <input
-                type="number"
-                className="w-full p-2 border rounded"
-                value={customWidth}
-                onChange={(e) => onCustomWidthChange(Number(e.target.value))}
-                min="100"
-                max="2000"
+    // Convert string values to numbers for calculations
+    const left = layout.left ? parseInt(layout.left.replace('px', '')) : 0;
+    const top = layout.top ? parseInt(layout.top.replace('px', '')) : 0;
+    const width = layout.width ? parseInt(layout.width.replace('px', '')) : 'auto';
+    const height = layout.height ? parseInt(layout.height.replace('px', '')) : 'auto';
+
+    const elementStyle = {
+      ...style,
+      position: layout.position as 'absolute' | 'relative' | 'fixed' | 'static' | 'sticky',
+      left: `${left}px`,
+      top: `${top}px`,
+      width: typeof width === 'number' ? `${width}px` : width,
+      height: typeof height === 'number' ? `${height}px` : height,
+      transform: layout.transform,
+      textAlign: layout.alignment as 'left' | 'center' | 'right' | undefined,
+    };
+
+    switch (element.type) {
+      case 'button':
+        return (
+          <button
+            key={element.id}
+            style={elementStyle}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            {element.properties.text}
+          </button>
+        );
+      case 'text':
+        return (
+          <div
+            key={element.id}
+            style={elementStyle}
+            className="outline-none"
+          >
+            {element.properties.text}
+          </div>
+        );
+      case 'input':
+        return (
+          <input
+            key={element.id}
+            type="text"
+            value={elementStates[element.id] || ''}
+            onChange={(e) => onElementStateChange(element.id, e.target.value)}
+            placeholder={element.properties.text}
+            style={elementStyle}
+            className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        );
+      case 'image':
+        return (
+          <div key={element.id} style={elementStyle} className="relative group">
+            {elementStates[element.id] ? (
+              <img
+                src={elementStates[element.id]}
+                alt="Selected"
+                className="w-full h-full object-cover rounded"
               />
-            </div>
-            <div className="flex-1">
-              <label className="text-sm font-medium">Height (px):</label>
-              <input
-                type="number"
-                className="w-full p-2 border rounded"
-                value={customHeight}
-                onChange={(e) => onCustomHeightChange(Number(e.target.value))}
-                min="100"
-                max="2000"
-              />
+            ) : (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px]">
+                <Smartphone className="w-8 h-8 text-gray-400 mb-2" />
+                <span className="text-gray-500">No image selected</span>
+              </div>
+            )}
+          </div>
+        );
+      case 'card':
+        return (
+          <div key={element.id} style={elementStyle} className="border rounded-lg shadow-sm">
+            <div className="p-4">
+              <h3 className="text-lg font-semibold mb-2">
+                {element.properties.text}
+              </h3>
+              <p className="text-gray-600">Card content goes here</p>
             </div>
           </div>
-        )}
+        );
+      case 'container':
+        return (
+          <div
+            key={element.id}
+            style={elementStyle}
+            className="border-2 border-dashed border-gray-300 rounded-lg p-4"
+          >
+            <div className="text-center text-gray-500">
+              {element.properties.text || "Container"}
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="mb-4 w-full max-w-md">
+        <select
+          value={selectedType.name}
+          onChange={(e) => {
+            const type = phoneTypes.find(t => t.name === e.target.value);
+            if (type) onSelectType(type);
+          }}
+          className="w-full p-2 border rounded"
+        >
+          {phoneTypes.map((type) => (
+            <option key={type.name} value={type.name}>
+              {type.name}
+            </option>
+          ))}
+        </select>
       </div>
 
+      {selectedType.name === 'Custom' && (
+        <div className="mb-4 w-full max-w-md space-y-2">
+          <div>
+            <label className="block text-sm font-medium mb-1">Width (px)</label>
+            <input
+              type="number"
+              value={customWidth}
+              onChange={(e) => onCustomWidthChange(Number(e.target.value))}
+              className="w-full p-2 border rounded"
+              min="0"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Height (px)</label>
+            <input
+              type="number"
+              value={customHeight}
+              onChange={(e) => onCustomHeightChange(Number(e.target.value))}
+              className="w-full p-2 border rounded"
+              min="0"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="relative">
-        {/* Phone Frame */}
-        <div className="relative bg-gray-800 rounded-[40px] p-4 shadow-xl">
-          {/* Notch */}
-          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-gray-800 rounded-b-3xl z-10" />
-          
-          {/* Screen */}
-          <div className="bg-gray-900 rounded-[32px] overflow-hidden">
-            <div className="relative">
-              {children}
-            </div>
+        <div
+          className="bg-gray-100 rounded-3xl p-4 shadow-lg"
+          style={{
+            width: canvasWidth + 32,
+            height: canvasHeight + 32,
+          }}
+        >
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2">
+            <div className="w-24 h-6 bg-gray-100 rounded-b-xl"></div>
+          </div>
+          <div className="absolute top-4 right-4">
+            <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
+          </div>
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+            <div className="w-24 h-1 bg-gray-300 rounded-full"></div>
           </div>
           
-          {/* Home Indicator */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-24 h-1 bg-gray-700 rounded-full" />
+          <div 
+            className="w-full h-full overflow-hidden rounded-2xl bg-white relative"
+            style={{
+              width: canvasWidth,
+              height: canvasHeight,
+            }}
+          >
+            {elements.map(renderElement)}
+          </div>
         </div>
       </div>
     </div>
