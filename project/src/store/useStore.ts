@@ -35,6 +35,7 @@ interface State {
   history: HistoryState;
   selectedElement: string | null;
   theme: 'light' | 'dark';
+  isPreviewMode: boolean;
   addElement: (type: Element['type'], properties?: Partial<Element['properties']>) => void;
   updateElement: (id: string, properties: Partial<Element['properties']>) => void;
   removeElement: (id: string) => void;
@@ -46,6 +47,7 @@ interface State {
   toggleTheme: () => void;
   groupElements: (elementIds: string[]) => void;
   ungroupElements: (groupId: string) => void;
+  togglePreviewMode: () => void;
   loadDesign: (designData: { elements: Element[]; elementStates: Record<string, string>; theme: 'light' | 'dark' }) => void;
 }
 
@@ -59,6 +61,7 @@ const useStore = create<State>((set) => ({
   },
   selectedElement: null,
   theme: 'light',
+  isPreviewMode: false,
 
   addElement: (type, properties = {}) => {
     set((state) => {
@@ -221,6 +224,10 @@ const useStore = create<State>((set) => ({
         },
       };
     });
+  },
+
+  togglePreviewMode: () => {
+    set((state) => ({ isPreviewMode: !state.isPreviewMode }));
   },
 
   loadDesign: (designData) => {

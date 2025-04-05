@@ -14,10 +14,12 @@ import {
   CreditCard,
   Group,
   Ungroup,
-  Trash2
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
+import PhoneMockup from './components/PhoneMockup';
 import useStore from './store/useStore';
 
 function App() {
@@ -26,6 +28,7 @@ function App() {
     elementStates,
     selectedElement,
     theme,
+    isPreviewMode,
     addElement,
     moveElement,
     setElementState,
@@ -35,7 +38,8 @@ function App() {
     selectElement,
     removeElement,
     groupElements,
-    ungroupElements
+    ungroupElements,
+    togglePreviewMode
   } = useStore();
 
   const toolboxItems = [
@@ -142,6 +146,13 @@ function App() {
             DragNdrop Labs
           </h1>
           <div className="flex gap-2">
+            <button
+              onClick={togglePreviewMode}
+              className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+              title={isPreviewMode ? "Exit Preview" : "Preview"}
+            >
+              <Eye className="w-4 h-4" />
+            </button>
             <button
               onClick={undo}
               className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
