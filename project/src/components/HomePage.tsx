@@ -3,6 +3,7 @@
 import type React from "react"
 import { ArrowRight, Flame, Zap, Share2 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from "@clerk/clerk-react"
 
 interface HomePageProps {
   theme: 'light' | 'dark'
@@ -32,6 +33,25 @@ const HomePage: React.FC<HomePageProps> = ({ theme }) => {
       <div className="absolute top-1/3 -left-20 w-96 h-96 bg-purple-900 -rotate-12 opacity-20 blur-xl z-0"></div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10">
+        {/* Auth Buttons */}
+        <div className="absolute top-4 right-4 flex gap-4">
+          <SignedOut>
+            <SignInButton mode="modal">
+              <button className="px-4 py-2 bg-zinc-800 text-white rounded-none hover:bg-zinc-700 transition-colors">
+                Sign In
+              </button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button className="px-4 py-2 bg-red-600 text-white rounded-none hover:bg-red-700 transition-colors">
+                Sign Up
+              </button>
+            </SignUpButton>
+          </SignedOut>
+          <SignedIn>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
+        </div>
+
         <div className="text-center">
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold mb-6 tracking-tighter">
             <span className="text-red-600">DRAG</span>
@@ -46,13 +66,23 @@ const HomePage: React.FC<HomePageProps> = ({ theme }) => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button
-              onClick={handleGetStarted}
-              className="group flex items-center justify-center gap-2 px-8 py-4 bg-red-700 text-white rounded-none hover:bg-red-600 transition-all duration-300 text-lg font-bold border-2 border-red-700 hover:border-red-500 transform hover:-translate-y-1 shadow-lg"
-            >
-              GET STARTED
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
+            <SignedIn>
+              <button
+                onClick={handleGetStarted}
+                className="group flex items-center justify-center gap-2 px-8 py-4 bg-red-700 text-white rounded-none hover:bg-red-600 transition-all duration-300 text-lg font-bold border-2 border-red-700 hover:border-red-500 transform hover:-translate-y-1 shadow-lg"
+              >
+                GET STARTED
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </SignedIn>
+            <SignedOut>
+              <SignUpButton mode="modal">
+                <button className="group flex items-center justify-center gap-2 px-8 py-4 bg-red-700 text-white rounded-none hover:bg-red-600 transition-all duration-300 text-lg font-bold border-2 border-red-700 hover:border-red-500 transform hover:-translate-y-1 shadow-lg">
+                  GET STARTED
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </SignUpButton>
+            </SignedOut>
           </div>
         </div>
 
