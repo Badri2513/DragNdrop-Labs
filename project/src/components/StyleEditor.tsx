@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import useStore from "../store/useStore";
 
 interface StyleEditorProps {
-  elementId: string;
+  elementId: string | null;
   position?: "sidebar" | "floating";
 }
 
@@ -11,32 +11,89 @@ export default function StyleEditor({
   position = "floating",
 }: StyleEditorProps) {
   const [isOpen, setIsOpen] = useState(true);
-  const { elements, updateElement } = useStore();
-  const element = elements.find((el) => el.id === elementId);
+  const { elements, updateElement, canvasWidth, canvasHeight, setCanvasDimensions } = useStore();
+  const element = elementId ? elements.find((el) => el.id === elementId) : null;
+
+  if (!element && !elementId) {
+    // Show canvas controls when no element is selected
+    return (
+      <>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="fixed right-80 top-4 bg-white p-2 rounded-l shadow-lg border border-r-0 border-gray-200"
+        >
+          {isOpen ? "→" : "←"}
+        </button>
+        <div
+          className={`fixed right-0 top-0 h-screen bg-white shadow-lg border-l border-gray-200 overflow-y-auto transition-all duration-300 ${
+            isOpen ? "w-80" : "w-0"
+          }`}
+        >
+          <div className="p-4 min-w-[320px]">
+            <h3 className="font-semibold text-gray-700 mb-4">Canvas Settings</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Canvas Width (px)</label>
+                <input
+                  type="number"
+                  value={canvasWidth || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : Number(e.target.value);
+                    setCanvasDimensions(value, canvasHeight);
+                  }}
+                  min="100"
+                  max="2000"
+                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Canvas Height (px)</label>
+                <input
+                  type="number"
+                  value={canvasHeight || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? 0 : Number(e.target.value);
+                    setCanvasDimensions(canvasWidth, value);
+                  }}
+                  min="100"
+                  max="2000"
+                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   if (!element) return null;
 
   const { style = {}, layout = {} } = element.properties;
 
   const handleStyleChange = (property: string, value: string) => {
+    if (!elementId) return;
     updateElement(elementId, {
       style: { ...style, [property]: value },
     });
   };
 
   const handleLayoutChange = (property: string, value: string) => {
+    if (!elementId) return;
     updateElement(elementId, {
       layout: { ...layout, [property]: value },
     });
   };
 
   const handleTextChange = (value: string) => {
+    if (!elementId) return;
     updateElement(elementId, {
       text: value,
     });
   };
 
   const handleLinkChange = (value: string) => {
+    if (!elementId) return;
     updateElement(elementId, {
       onClick: `window.location.href = '${value || '#'}'`,
     });

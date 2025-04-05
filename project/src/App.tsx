@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Layers,
   Type,
@@ -23,6 +23,9 @@ import StyleEditor from './components/StyleEditor';
 import PhoneMockup from './components/PhoneMockup';
 import useStore from './store/useStore';
 
+type ElementType = "button" | "text" | "input" | "table" | "container" | "image" | "card";
+type Position = "absolute" | "relative" | "fixed" | "static" | "sticky";
+
 function App() {
   const {
     elements,
@@ -30,8 +33,10 @@ function App() {
     selectedElement,
     theme,
     isPreviewMode,
+    canvasWidth,
+    canvasHeight,
     addElement,
-    moveElement,
+    updateElementPosition,
     setElementState,
     undo,
     redo,
@@ -43,6 +48,8 @@ function App() {
     togglePreviewMode,
     loadDesign
   } = useStore();
+
+  const [draggingElement, setDraggingElement] = useState<{ id: string; startX: number; startY: number } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -69,19 +76,53 @@ function App() {
     { type: "container", icon: Group, label: "Container" },
   ];
 
-  const handleDragEnd = useCallback(
-    (result: DropResult) => {
-      if (!result.destination) return;
+  const handleDragStart = (e: React.MouseEvent, id: string) => {
+    if (isPreviewMode) return;
+    const element = e.currentTarget as HTMLElement;
+    const rect = element.getBoundingClientRect();
+    setDraggingElement({
+      id,
+      startX: e.clientX - rect.left,
+      startY: e.clientY - rect.top,
+    });
+  };
 
-      if (result.source.droppableId === "toolbox") {
-        const type = result.draggableId as any;
-        addElement(type);
-      } else {
-        moveElement(result.source.index, result.destination.index);
-      }
-    },
-    [addElement, moveElement]
-  );
+  const handleDragMove = useCallback((e: MouseEvent) => {
+    if (!draggingElement) return;
+    const element = document.getElementById(draggingElement.id);
+    if (!element) return;
+
+    const canvas = element.parentElement;
+    if (!canvas) return;
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    
+    // Calculate new position
+    let x = e.clientX - canvasRect.left - draggingElement.startX;
+    let y = e.clientY - canvasRect.top - draggingElement.startY;
+
+    // Constrain to canvas bounds
+    x = Math.max(0, Math.min(x, canvasRect.width - elementRect.width));
+    y = Math.max(0, Math.min(y, canvasRect.height - elementRect.height));
+
+    updateElementPosition(draggingElement.id, x, y);
+  }, [draggingElement, updateElementPosition]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingElement(null);
+  }, []);
+
+  useEffect(() => {
+    if (draggingElement) {
+      document.addEventListener('mousemove', handleDragMove);
+      document.addEventListener('mouseup', handleDragEnd);
+      return () => {
+        document.removeEventListener('mousemove', handleDragMove);
+        document.removeEventListener('mouseup', handleDragEnd);
+      };
+    }
+  }, [draggingElement, handleDragMove, handleDragEnd]);
 
   const handleElementSelect = (id: string) => {
     selectElement(selectedElement === id ? null : id);
@@ -147,6 +188,13 @@ function App() {
       navigator.clipboard.writeText(shareUrl).then(() => {
         alert('Share link copied to clipboard!');
       }).catch(console.error);
+    }
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    // Only deselect if clicking directly on the canvas (not on an element)
+    if (e.target === e.currentTarget) {
+      selectElement(null);
     }
   };
 
@@ -219,178 +267,140 @@ function App() {
           </div>
         </div>
 
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex gap-4">
-            {!isPreviewMode && (
-              <div className="w-64">
-                <div
-                  className={`rounded-lg shadow p-4 ${
-                    theme === "dark" ? "bg-gray-800" : "bg-white"
-                  }`}
-                >
-                  <h2 className="font-semibold mb-4">Toolbox</h2>
-                  <Droppable droppableId="toolbox" isDropDisabled={true}>
-                    {(provided) => (
-                      <div
-                        {...provided.droppableProps}
-                        ref={provided.innerRef}
-                        className="space-y-2"
-                      >
-                        {toolboxItems.map((item, index) => (
-                          <Draggable
-                            key={item.type}
-                            draggableId={item.type}
-                            index={index}
-                          >
-                            {(provided) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={`flex items-center gap-2 p-3 rounded cursor-move
-                                  ${
-                                    theme === "dark"
-                                      ? "bg-gray-700 hover:bg-gray-600"
-                                      : "bg-gray-50 hover:bg-gray-100"
-                                  }`}
-                              >
-                                <item.icon className="w-4 h-4" />
-                                {item.label}
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </div>
-
-                <div className={`mt-4 rounded-lg shadow p-4 ${
+        <div className="flex gap-4">
+          {!isPreviewMode && (
+            <div className="w-64">
+              <div
+                className={`rounded-lg shadow p-4 ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
-                }`}>
-                  <h2 className="font-semibold mb-4">Export & Share</h2>
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleExportJSON}
-                      className={`w-full flex items-center gap-2 p-3 rounded transition-colors
-                        ${theme === "dark" 
-                          ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                          : "bg-blue-500 hover:bg-blue-600 text-white"}`}
+                }`}
+              >
+                <h2 className="font-semibold mb-4">Toolbox</h2>
+                <div className="space-y-2">
+                  {toolboxItems.map((item) => (
+                    <div
+                      key={item.type}
+                      onClick={() => addElement(item.type as ElementType)}
+                      className={`flex items-center gap-2 p-3 rounded cursor-pointer
+                        ${
+                          theme === "dark"
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-50 hover:bg-gray-100"
+                        }`}
                     >
-                      <Download className="w-4 h-4" />
-                      Export to JSON
-                    </button>
-                    <button
-                      onClick={handleShare}
-                      className={`w-full flex items-center gap-2 p-3 rounded transition-colors
-                        ${theme === "dark" 
-                          ? "bg-green-600 hover:bg-green-700 text-white" 
-                          : "bg-green-500 hover:bg-green-600 text-white"}`}
-                    >
-                      <Share2 className="w-4 h-4" />
-                      Share Design
-                    </button>
-                  </div>
+                      <item.icon className="w-4 h-4" />
+                      {item.label}
+                    </div>
+                  ))}
                 </div>
               </div>
-            )}
 
-            <div
-              className={`flex-1 ${
-                isPreviewMode ? "flex justify-center items-start pt-8" : ""
-              }`}
-            >
-              <Droppable droppableId="canvas" isDropDisabled={isPreviewMode}>
-                {(provided) => (
-                  <>
-                    {isPreviewMode ? (
-                      <PhoneMockup>
-                        <div className="p-4">
-                          {elements.map((element, index) => (
-                            <div
-                              key={element.id}
-                              className="mb-4"
-                              style={{
-                                width:
-                                  element.properties.layout?.width || "100%",
-                                textAlign:
-                                  element.properties.layout?.alignment ||
-                                  "left",
-                              }}
-                            >
-                              <PreviewElement
-                                element={element}
-                                value={elementStates[element.id]}
-                                onChange={(value) =>
-                                  setElementState(element.id, value)
-                                }
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </PhoneMockup>
-                    ) : (
-                      <div
-                        {...provided.droppableProps}
-                        ref={provided.innerRef}
-                        className={`min-h-[600px] rounded-lg shadow p-4 ${
-                          theme === "dark" ? "bg-gray-800" : "bg-white"
-                        }`}
-                      >
-                        {elements.map((element, index) => (
-                          <Draggable
-                            key={element.id}
-                            draggableId={element.id}
-                            index={index}
-                            isDragDisabled={isPreviewMode}
-                          >
-                            {(provided) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={`mb-4 ${
-                                  !isPreviewMode &&
-                                  selectedElement === element.id
-                                    ? "ring-2 ring-blue-500"
-                                    : ""
-                                }`}
-                                onClick={() =>
-                                  !isPreviewMode &&
-                                  handleElementSelect(element.id)
-                                }
-                                style={{
-                                  width:
-                                    element.properties.layout?.width || "100%",
-                                  textAlign:
-                                    element.properties.layout?.alignment ||
-                                    "left",
-                                }}
-                              >
-                                <PreviewElement
-                                  element={element}
-                                  value={elementStates[element.id]}
-                                  onChange={(value) =>
-                                    setElementState(element.id, value)
-                                  }
-                                />
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                      </div>
-                    )}
-                    {!isPreviewMode && provided.placeholder}
-                  </>
-                )}
-              </Droppable>
+              <div className={`mt-4 rounded-lg shadow p-4 ${
+                theme === "dark" ? "bg-gray-800" : "bg-white"
+              }`}>
+                <h2 className="font-semibold mb-4">Export & Share</h2>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleExportJSON}
+                    className={`w-full flex items-center gap-2 p-3 rounded transition-colors
+                      ${theme === "dark" 
+                        ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                        : "bg-blue-500 hover:bg-blue-600 text-white"}`}
+                  >
+                    <Download className="w-4 h-4" />
+                    Export to JSON
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    className={`w-full flex items-center gap-2 p-3 rounded transition-colors
+                      ${theme === "dark" 
+                        ? "bg-green-600 hover:bg-green-700 text-white" 
+                        : "bg-green-500 hover:bg-green-600 text-white"}`}
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Share Design
+                  </button>
+                </div>
+              </div>
             </div>
+          )}
+
+          <div
+            className={`flex-1 relative flex justify-center items-center ${
+              isPreviewMode ? "pt-8" : ""
+            }`}
+          >
+            {isPreviewMode ? (
+              <PhoneMockup>
+                <div className="p-4">
+                  {elements.map((element) => (
+                    <div
+                      key={element.id}
+                      className="mb-4"
+                      style={{
+                        width: element.properties.layout?.width || "100%",
+                        textAlign: element.properties.layout?.alignment || "left",
+                      }}
+                    >
+                      <PreviewElement
+                        element={element}
+                        value={elementStates[element.id]}
+                        onChange={(value) => setElementState(element.id, value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </PhoneMockup>
+            ) : (
+              <div
+                className={`rounded-lg shadow p-4 relative overflow-hidden ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                }`}
+                style={{
+                  width: `${canvasWidth}px`,
+                  height: `${canvasHeight}px`,
+                }}
+                onClick={handleCanvasClick}
+              >
+                {elements.map((element) => (
+                  <div
+                    key={element.id}
+                    id={element.id}
+                    onMouseDown={(e) => handleDragStart(e, element.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      !draggingElement && handleElementSelect(element.id);
+                    }}
+                    className={`inline-block ${
+                      !isPreviewMode && selectedElement === element.id
+                        ? "ring-2 ring-blue-500"
+                        : ""
+                    }`}
+                    style={{
+                      position: (element.properties.layout?.position as Position) || "absolute",
+                      left: element.properties.layout?.left || "50%",
+                      top: element.properties.layout?.top || "50%",
+                      transform: element.properties.layout?.transform || "translate(-50%, -50%)",
+                      width: "fit-content",
+                      cursor: draggingElement?.id === element.id ? "grabbing" : "grab",
+                    }}
+                  >
+                    <div style={{ width: element.properties.layout?.width || "auto" }}>
+                      <PreviewElement
+                        element={element}
+                        value={elementStates[element.id]}
+                        onChange={(value) => setElementState(element.id, value)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </DragDropContext>
+        </div>
       </div>
 
-      {!isPreviewMode && selectedElement && (
+      {!isPreviewMode && (
         <StyleEditor elementId={selectedElement} position="floating" />
       )}
     </div>

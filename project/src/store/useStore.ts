@@ -19,6 +19,10 @@ export interface Element {
       width?: string;
       height?: string;
       alignment?: 'left' | 'center' | 'right';
+      position?: string;
+      left?: string;
+      top?: string;
+      transform?: string;
     };
   };
   groupId?: string;
@@ -37,11 +41,15 @@ interface State {
   selectedElement: string | null;
   theme: 'light' | 'dark';
   isPreviewMode: boolean;
+  canvasWidth: number;
+  canvasHeight: number;
   addElement: (type: Element['type'], properties?: Partial<Element['properties']>) => void;
   updateElement: (id: string, properties: Partial<Element['properties']>) => void;
   removeElement: (id: string) => void;
   setElementState: (id: string, value: string) => void;
   moveElement: (sourceIndex: number, destinationIndex: number) => void;
+  updateElementPosition: (id: string, x: number, y: number) => void;
+  setCanvasDimensions: (width: number, height: number) => void;
   undo: () => void;
   redo: () => void;
   selectElement: (id: string | null) => void;
@@ -49,7 +57,7 @@ interface State {
   groupElements: (elementIds: string[]) => void;
   ungroupElements: (groupId: string) => void;
   togglePreviewMode: () => void;
-  loadDesign: (designData: { elements: Element[]; elementStates: Record<string, string>; theme: 'light' | 'dark' }) => void;
+  loadDesign: (designData: { elements: Element[]; elementStates: Record<string, string>; theme: 'light' | 'dark'; canvasWidth: number; canvasHeight: number }) => void;
 }
 
 const useStore = create<State>((set) => ({
@@ -63,6 +71,20 @@ const useStore = create<State>((set) => ({
   selectedElement: null,
   theme: 'light',
   isPreviewMode: false,
+  canvasWidth: 800,
+  canvasHeight: 600,
+
+  setCanvasDimensions: (width, height) => {
+    set((state) => ({
+      canvasWidth: width,
+      canvasHeight: height,
+      history: {
+        past: [...state.history.past, state.elements],
+        present: state.elements,
+        future: [],
+      },
+    }));
+  },
 
   addElement: (type, properties = {}) => {
     set((state) => {
@@ -93,6 +115,10 @@ const useStore = create<State>((set) => ({
           layout: {
             width: '100%',
             alignment: 'left',
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
             ...properties.layout,
           },
         },
@@ -169,6 +195,34 @@ const useStore = create<State>((set) => ({
       const newElements = Array.from(state.elements);
       const [removed] = newElements.splice(sourceIndex, 1);
       newElements.splice(destinationIndex, 0, removed);
+      return {
+        elements: newElements,
+        history: {
+          past: [...state.history.past, state.elements],
+          present: newElements,
+          future: [],
+        },
+      };
+    });
+  },
+
+  updateElementPosition: (id, x, y) => {
+    set((state) => {
+      const newElements = state.elements.map((el) =>
+        el.id === id
+          ? {
+              ...el,
+              properties: {
+                ...el.properties,
+                layout: {
+                  ...el.properties.layout,
+                  left: `${x}px`,
+                  top: `${y}px`,
+                },
+              },
+            }
+          : el
+      );
       return {
         elements: newElements,
         history: {
@@ -262,6 +316,8 @@ const useStore = create<State>((set) => ({
       elements: designData.elements,
       elementStates: designData.elementStates,
       theme: designData.theme,
+      canvasWidth: designData.canvasWidth || 800,
+      canvasHeight: designData.canvasHeight || 600,
       history: {
         past: [],
         present: designData.elements,
