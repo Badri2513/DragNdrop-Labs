@@ -17,6 +17,7 @@ export interface Element {
     };
     layout?: {
       width?: string;
+      height?: string;
       alignment?: 'left' | 'center' | 'right';
     };
   };
@@ -65,11 +66,21 @@ const useStore = create<State>((set) => ({
 
   addElement: (type, properties = {}) => {
     set((state) => {
+      const defaultTexts = {
+        button: 'Click me',
+        text: '  ',
+        input: 'Enter text here',
+        table: 'Table',
+        image: 'Image',
+        card: 'Card',
+        container: 'Container'
+      };
+
       const newElement: Element = {
         id: nanoid(),
         type,
         properties: {
-          text: `New ${type}`,
+          text: defaultTexts[type] || `New ${type}`,
           ...properties,
           style: {
             backgroundColor: '#ffffff',
@@ -132,9 +143,25 @@ const useStore = create<State>((set) => ({
   },
 
   setElementState: (id, value) => {
-    set((state) => ({
-      elementStates: { ...state.elementStates, [id]: value },
-    }));
+    set((state) => {
+      const element = state.elements.find(el => el.id === id);
+      if (element?.type === 'container') {
+        try {
+          const newProperties = JSON.parse(value);
+          return {
+            elementStates: { ...state.elementStates, [id]: value },
+            elements: state.elements.map(el => 
+              el.id === id 
+                ? { ...el, properties: { ...el.properties, ...newProperties } }
+                : el
+            )
+          };
+        } catch (e) {
+          return { elementStates: { ...state.elementStates, [id]: value } };
+        }
+      }
+      return { elementStates: { ...state.elementStates, [id]: value } };
+    });
   },
 
   moveElement: (sourceIndex, destinationIndex) => {

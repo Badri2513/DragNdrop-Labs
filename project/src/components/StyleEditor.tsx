@@ -11,10 +11,8 @@ export default function StyleEditor({
   position = "floating",
 }: StyleEditorProps) {
   const [isOpen, setIsOpen] = useState(true);
-  const element = useStore((state) =>
-    state.elements.find((el) => el.id === elementId)
-  );
-  const updateElement = useStore((state) => state.updateElement);
+  const { elements, updateElement } = useStore();
+  const element = elements.find((el) => el.id === elementId);
 
   if (!element) return null;
 
@@ -32,12 +30,49 @@ export default function StyleEditor({
     });
   };
 
+  const handleTextChange = (value: string) => {
+    updateElement(elementId, {
+      text: value,
+    });
+  };
+
+  const handleLinkChange = (value: string) => {
+    updateElement(elementId, {
+      onClick: `window.location.href = '${value || '#'}'`,
+    });
+  };
+
   if (position === "sidebar") {
     return (
       <div className="p-4 min-w-[320px]">
         <h3 className="font-semibold text-gray-700">Style Properties</h3>
 
         <div className="space-y-2">
+          <label className="block text-sm text-gray-600">
+            Text
+            <input
+              type="text"
+              value={element.properties.text || ''}
+              onChange={(e) => handleTextChange(e.target.value)}
+              className="block w-full mt-1"
+            />
+          </label>
+
+          {element.type === 'button' && (
+            <div>
+              <label className="block text-sm text-gray-600">
+                Link URL
+                <input
+                  type="text"
+                  value={element.properties.onClick?.replace("window.location.href = '", "").replace("'", "") || ''}
+                  onChange={(e) => handleLinkChange(e.target.value)}
+                  placeholder="Enter URL"
+                  className="block w-full mt-1"
+                />
+              </label>
+            </div>
+          )}
+
           <label className="block text-sm text-gray-600">
             Background Color
             <input
@@ -107,37 +142,41 @@ export default function StyleEditor({
         <h3 className="font-semibold text-gray-700 mt-6">Layout Properties</h3>
 
         <div className="space-y-2">
-          <label className="block text-sm text-gray-600">
-            Width
-            <select
-              value={layout.width || "100%"}
-              onChange={(e) => handleLayoutChange("width", e.target.value)}
-              className="block w-full mt-1 rounded border-gray-300"
-            >
-              <option value="25%">25%</option>
-              <option value="50%">50%</option>
-              <option value="75%">75%</option>
-              <option value="100%">100%</option>
-            </select>
-          </label>
+          <div>
+            <label className="block text-sm font-medium mb-1">Width</label>
+            <input
+              type="text"
+              value={element.properties.layout?.width || '100%'}
+              onChange={(e) => handleLayoutChange('width', e.target.value)}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
 
-          <label className="block text-sm text-gray-600">
-            Alignment
+          {element.type === 'container' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Height</label>
+              <input
+                type="text"
+                value={element.properties.layout?.height || 'auto'}
+                onChange={(e) => handleLayoutChange('height', e.target.value)}
+                placeholder="e.g., 200px, 50%, auto"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Alignment</label>
             <select
-              value={layout.alignment || "left"}
-              onChange={(e) =>
-                handleLayoutChange(
-                  "alignment",
-                  e.target.value as "left" | "center" | "right"
-                )
-              }
-              className="block w-full mt-1 rounded border-gray-300"
+              value={element.properties.layout?.alignment || 'left'}
+              onChange={(e) => handleLayoutChange('alignment', e.target.value as 'left' | 'center' | 'right')}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="left">Left</option>
               <option value="center">Center</option>
               <option value="right">Right</option>
             </select>
-          </label>
+          </div>
         </div>
       </div>
     );
@@ -160,6 +199,31 @@ export default function StyleEditor({
           <h3 className="font-semibold text-gray-700">Style Properties</h3>
 
           <div className="space-y-2">
+            <label className="block text-sm text-gray-600">
+              Text
+              <input
+                type="text"
+                value={element.properties.text || ''}
+                onChange={(e) => handleTextChange(e.target.value)}
+                className="block w-full mt-1"
+              />
+            </label>
+
+            {element.type === 'button' && (
+              <div>
+                <label className="block text-sm text-gray-600">
+                  Link URL
+                  <input
+                    type="text"
+                    value={element.properties.onClick?.replace("window.location.href = '", "").replace("'", "") || ''}
+                    onChange={(e) => handleLinkChange(e.target.value)}
+                    placeholder="Enter URL"
+                    className="block w-full mt-1"
+                  />
+                </label>
+              </div>
+            )}
+
             <label className="block text-sm text-gray-600">
               Background Color
               <input
@@ -231,37 +295,41 @@ export default function StyleEditor({
           </h3>
 
           <div className="space-y-2">
-            <label className="block text-sm text-gray-600">
-              Width
-              <select
-                value={layout.width || "100%"}
-                onChange={(e) => handleLayoutChange("width", e.target.value)}
-                className="block w-full mt-1 rounded border-gray-300"
-              >
-                <option value="25%">25%</option>
-                <option value="50%">50%</option>
-                <option value="75%">75%</option>
-                <option value="100%">100%</option>
-              </select>
-            </label>
+            <div>
+              <label className="block text-sm font-medium mb-1">Width</label>
+              <input
+                type="text"
+                value={element.properties.layout?.width || '100%'}
+                onChange={(e) => handleLayoutChange('width', e.target.value)}
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
 
-            <label className="block text-sm text-gray-600">
-              Alignment
+            {element.type === 'container' && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Height</label>
+                <input
+                  type="text"
+                  value={element.properties.layout?.height || 'auto'}
+                  onChange={(e) => handleLayoutChange('height', e.target.value)}
+                  placeholder="e.g., 200px, 50%, auto"
+                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Alignment</label>
               <select
-                value={layout.alignment || "left"}
-                onChange={(e) =>
-                  handleLayoutChange(
-                    "alignment",
-                    e.target.value as "left" | "center" | "right"
-                  )
-                }
-                className="block w-full mt-1 rounded border-gray-300"
+                value={element.properties.layout?.alignment || 'left'}
+                onChange={(e) => handleLayoutChange('alignment', e.target.value as 'left' | 'center' | 'right')}
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="left">Left</option>
                 <option value="center">Center</option>
                 <option value="right">Right</option>
               </select>
-            </label>
+            </div>
           </div>
         </div>
       </div>

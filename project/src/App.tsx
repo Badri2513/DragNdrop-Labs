@@ -414,6 +414,19 @@ function PreviewElement({
     fontSize: element.properties.style?.fontSize,
   };
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          onChange(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   switch (element.type) {
     case "button":
       return (
@@ -433,7 +446,17 @@ function PreviewElement({
         </button>
       );
     case "text":
-      return <p style={style}>{element.properties.text}</p>;
+      return (
+        <div
+          contentEditable
+          suppressContentEditableWarning
+          onBlur={(e) => onChange(e.currentTarget.textContent || "")}
+          style={style}
+          className="outline-none"
+        >
+          {element.properties.text}
+        </div>
+      );
     case "input":
       return (
         <input
@@ -470,11 +493,24 @@ function PreviewElement({
       );
     case "image":
       return (
-        <div style={style}>
-          <img
-            src="https://source.unsplash.com/random/800x400"
-            alt="Random"
-            className="w-full h-auto rounded"
+        <div style={style} className="relative group">
+          {value ? (
+            <img
+              src={value}
+              alt="Selected"
+              className="w-full h-auto rounded"
+            />
+          ) : (
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px]">
+              <Image className="w-8 h-8 text-gray-400 mb-2" />
+              <span className="text-gray-500">Click to select an image</span>
+            </div>
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
         </div>
       );
@@ -492,9 +528,44 @@ function PreviewElement({
     case "container":
       return (
         <div
-          className="border-2 border-dashed border-gray-300 rounded-lg p-4"
+          className="border-2 border-dashed border-gray-300 rounded-lg p-4 relative group"
           style={style}
         >
+          <div className="absolute top-0 right-0 flex space-x-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              className="w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startWidth = element.properties.layout?.width || '100%';
+                const startHeight = element.properties.layout?.height || 'auto';
+
+                const handleMouseMove = (e: MouseEvent) => {
+                  const deltaX = e.clientX - startX;
+                  const deltaY = e.clientY - startY;
+                  const newWidth = `calc(${startWidth} + ${deltaX}px)`;
+                  const newHeight = `calc(${startHeight} + ${deltaY}px)`;
+                  onChange(JSON.stringify({
+                    ...element.properties,
+                    layout: {
+                      ...element.properties.layout,
+                      width: newWidth,
+                      height: newHeight
+                    }
+                  }));
+                };
+
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+            />
+          </div>
           <div className="text-center text-gray-500">
             {element.properties.text || "Container (Drag elements here)"}
           </div>
