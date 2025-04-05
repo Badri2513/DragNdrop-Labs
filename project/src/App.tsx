@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import {
   Layers,
   Type,
@@ -452,282 +453,300 @@ function App() {
       <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-100"}`}>
         <Routes>
           <Route path="/" element={<HomePage theme={theme} />} />
-          <Route 
-            path="/projects" 
+          
+          {/* Protected Routes */}
+          <Route
+            path="/projects"
             element={
-              <LandingPage 
-                theme={theme}
-                projects={projects}
-                onNewProject={handleNewProject}
-                onOpenProject={handleOpenProject}
-                onEditProject={handleEditProject}
-                onDeleteProject={handleDeleteProject}
-              />
-            } 
+              <>
+                <SignedIn>
+                  <LandingPage 
+                    theme={theme}
+                    projects={projects}
+                    onNewProject={handleNewProject}
+                    onOpenProject={handleOpenProject}
+                    onEditProject={handleEditProject}
+                    onDeleteProject={handleDeleteProject}
+                  />
+                </SignedIn>
+                <SignedOut>
+                  <RedirectToSignIn />
+                </SignedOut>
+              </>
+            }
           />
-          <Route 
-            path="/editor" 
+          
+          <Route
+            path="/editor"
             element={
-              <div className="container mx-auto p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Layers className="w-6 h-6" />
-                    DragNdrop Labs
-                  </h1>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={togglePreviewMode}
-                      className={`p-2 rounded ${
-                        theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-200"
-                      }`}
-                      title={isPreviewMode ? "Exit Preview" : "Preview"}
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={undo}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Undo"
-                    >
-                      <Undo2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={redo}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Redo"
-                    >
-                      <Redo2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={toggleTheme}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Toggle Theme"
-                    >
-                      {theme === "light" ? (
-                        <Moon className="w-4 h-4" />
-                      ) : (
-                        <Sun className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={handleGroupSelected}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Group Elements"
-                    >
-                      <Group className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleUngroup}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Ungroup Elements"
-                    >
-                      <Ungroup className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => selectedElement && removeElement(selectedElement)}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Delete Selected"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  {!isPreviewMode && (
-                    <div className="w-64">
-                      <div
-                        className={`rounded-lg shadow p-4 ${
-                          theme === "dark" ? "bg-gray-800" : "bg-white"
-                        }`}
-                      >
-                        <h2 className="font-semibold mb-4">Toolbox</h2>
-                        <div className="space-y-2">
-                          {toolboxItems.map((item) => (
-                            <div
-                              key={item.type}
-                              onClick={() => addElement(item.type as ElementType)}
-                              className={`flex items-center gap-2 p-3 rounded cursor-pointer
-                                ${
-                                  theme === "dark"
-                                    ? "bg-gray-700 hover:bg-gray-600"
-                                    : "bg-gray-50 hover:bg-gray-100"
-                                }`}
-                            >
-                              <item.icon className="w-4 h-4" />
-                              {item.label}
-                            </div>
-                          ))}
-                        </div>
+              <>
+                <SignedIn>
+                  <div className="container mx-auto p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <Layers className="w-6 h-6" />
+                        DragNdrop Labs
+                      </h1>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={togglePreviewMode}
+                          className={`p-2 rounded ${
+                            theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-200"
+                          }`}
+                          title={isPreviewMode ? "Exit Preview" : "Preview"}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={undo}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Undo"
+                        >
+                          <Undo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={redo}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Redo"
+                        >
+                          <Redo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={toggleTheme}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Toggle Theme"
+                        >
+                          {theme === "light" ? (
+                            <Moon className="w-4 h-4" />
+                          ) : (
+                            <Sun className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={handleGroupSelected}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Group Elements"
+                        >
+                          <Group className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleUngroup}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Ungroup Elements"
+                        >
+                          <Ungroup className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => selectedElement && removeElement(selectedElement)}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Delete Selected"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  )}
 
-                  <div
-                    className={`flex-1 relative flex justify-center items-center ${
-                      isPreviewMode ? "pt-8" : ""
-                    }`}
-                  >
-                    {isPreviewMode ? (
-                      <PhoneTypeSelector
-                        selectedType={selectedPhoneType}
-                        onSelectType={(type) => {
-                          setSelectedPhoneType(type);
-                          if (type.name !== 'Custom') {
-                            setCanvasDimensions(type.width, type.height);
-                          }
-                        }}
-                        customWidth={canvasWidth}
-                        customHeight={canvasHeight}
-                        onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
-                        onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
-                        elements={elements}
-                        elementStates={elementStates}
-                        onElementStateChange={setElementState}
-                        canvasWidth={canvasWidth}
-                        canvasHeight={canvasHeight}
-                      />
-                    ) : (
-                      <div
-                        id="canvas"
-                        className={`rounded-lg shadow p-4 relative overflow-hidden ${
-                          theme === "dark" ? "bg-gray-800" : "bg-white"
-                        }`}
-                        style={{
-                          width: `${canvasWidth}px`,
-                          height: `${canvasHeight}px`,
-                        }}
-                        onClick={handleCanvasClick}
-                      >
-                        <CanvasGuides
-                          width={canvasWidth}
-                          height={canvasHeight}
-                          theme={theme}
-                          elements={elements}
-                          draggingElement={draggingElement || undefined}
-                          onSnap={handleSnap}
-                        />
-                        {elements.map((element) => (
+                    <div className="flex gap-4">
+                      {!isPreviewMode && (
+                        <div className="w-64">
                           <div
-                            key={element.id}
-                            id={element.id}
-                            onMouseDown={(e) => handleMouseDown(e, element.id)}
-                            className={`inline-block ${
-                              !isPreviewMode && selectedElement === element.id
-                                ? "ring-2 ring-blue-500"
-                                : ""
-                            } ${draggingElement?.id === element.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                            style={{
-                              position: (element.properties.layout?.position as Position) || "absolute",
-                              left: "0",
-                              top: "0",
-                              transform: `translate(${element.properties.layout?.left || "50%"}%, ${element.properties.layout?.top || "50%"}%)`,
-                              width: "fit-content",
-                              transition: draggingElement?.id === element.id ? 'none' : 'all 0.2s ease-out',
-                              zIndex: draggingElement?.id === element.id ? 50 : 1,
-                            }}
+                            className={`rounded-lg shadow p-4 ${
+                              theme === "dark" ? "bg-gray-800" : "bg-white"
+                            }`}
                           >
-                            <div style={{ width: element.properties.layout?.width || "auto" }}>
-                              <PreviewElement
-                                element={element}
-                                value={elementStates[element.id]}
-                                onChange={(value) => setElementState(element.id, value)}
-                              />
+                            <h2 className="font-semibold mb-4">Toolbox</h2>
+                            <div className="space-y-2">
+                              {toolboxItems.map((item) => (
+                                <div
+                                  key={item.type}
+                                  onClick={() => addElement(item.type as ElementType)}
+                                  className={`flex items-center gap-2 p-3 rounded cursor-pointer
+                                    ${
+                                      theme === "dark"
+                                        ? "bg-gray-700 hover:bg-gray-600"
+                                        : "bg-gray-50 hover:bg-gray-100"
+                                    }`}
+                                >
+                                  <item.icon className="w-4 h-4" />
+                                  {item.label}
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                        </div>
+                      )}
 
-                  {!isPreviewMode && (
-                    <div className="w-80 flex flex-col gap-4">
-                      <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => setActiveTab('elements')}
-                          className={`p-2 rounded flex items-center gap-2 ${
-                            activeTab === 'elements'
-                              ? theme === 'dark'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : theme === 'dark'
-                              ? 'hover:bg-gray-700'
-                              : 'hover:bg-gray-200'
-                          }`}
-                        >
-                          <Layers className="w-4 h-4" />
-                          Elements
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('style')}
-                          className={`p-2 rounded flex items-center gap-2 ${
-                            activeTab === 'style'
-                              ? theme === 'dark'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : theme === 'dark'
-                              ? 'hover:bg-gray-700'
-                              : 'hover:bg-gray-200'
-                          }`}
-                        >
-                          <Palette className="w-4 h-4" />
-                          Style
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('data')}
-                          className={`p-2 rounded flex items-center gap-2 ${
-                            activeTab === 'data'
-                              ? theme === 'dark'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : theme === 'dark'
-                              ? 'hover:bg-gray-700'
-                              : 'hover:bg-gray-200'
-                          }`}
-                        >
-                          <Table2 className="w-4 h-4" />
-                          Data
-                        </button>
-                      </div>
-
-                      <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
-                        theme === "dark" ? "bg-gray-800" : "bg-white"
-                      }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
-                        {activeTab === 'elements' && (
-                          <ComponentTree
+                      <div
+                        className={`flex-1 relative flex justify-center items-center ${
+                          isPreviewMode ? "pt-8" : ""
+                        }`}
+                      >
+                        {isPreviewMode ? (
+                          <PhoneTypeSelector
+                            selectedType={selectedPhoneType}
+                            onSelectType={(type) => {
+                              setSelectedPhoneType(type);
+                              if (type.name !== 'Custom') {
+                                setCanvasDimensions(type.width, type.height);
+                              }
+                            }}
+                            customWidth={canvasWidth}
+                            customHeight={canvasHeight}
+                            onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
+                            onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
                             elements={elements}
-                            selectedElement={selectedElement}
-                            onSelect={selectElement}
-                            theme={theme}
+                            elementStates={elementStates}
+                            onElementStateChange={setElementState}
+                            canvasWidth={canvasWidth}
+                            canvasHeight={canvasHeight}
                           />
-                        )}
-                        {activeTab === 'style' && selectedElement && (
-                          <StyleEditor
-                            elementId={selectedElement}
-                            onUpdate={handleUpdateElement}
-                            theme={theme}
-                            onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
-                          />
-                        )}
-                        {activeTab === 'data' && (
-                          <DataTab
-                            elements={elements}
-                            onUpdateElementData={handleUpdateElement}
-                            theme={theme}
-                          />
-                        )}
-                        {activeTab === 'style' && !selectedElement && (
-                          <div className="text-center text-gray-500">
-                            Select an element to edit its style
+                        ) : (
+                          <div
+                            id="canvas"
+                            className={`rounded-lg shadow p-4 relative overflow-hidden ${
+                              theme === "dark" ? "bg-gray-800" : "bg-white"
+                            }`}
+                            style={{
+                              width: `${canvasWidth}px`,
+                              height: `${canvasHeight}px`,
+                            }}
+                            onClick={handleCanvasClick}
+                          >
+                            <CanvasGuides
+                              width={canvasWidth}
+                              height={canvasHeight}
+                              theme={theme}
+                              elements={elements}
+                              draggingElement={draggingElement || undefined}
+                              onSnap={handleSnap}
+                            />
+                            {elements.map((element) => (
+                              <div
+                                key={element.id}
+                                id={element.id}
+                                onMouseDown={(e) => handleMouseDown(e, element.id)}
+                                className={`inline-block ${
+                                  !isPreviewMode && selectedElement === element.id
+                                    ? "ring-2 ring-blue-500"
+                                    : ""
+                                } ${draggingElement?.id === element.id ? 'cursor-grabbing' : 'cursor-grab'}`}
+                                style={{
+                                  position: (element.properties.layout?.position as Position) || "absolute",
+                                  left: "0",
+                                  top: "0",
+                                  transform: `translate(${element.properties.layout?.left || "50%"}%, ${element.properties.layout?.top || "50%"}%)`,
+                                  width: "fit-content",
+                                  transition: draggingElement?.id === element.id ? 'none' : 'all 0.2s ease-out',
+                                  zIndex: draggingElement?.id === element.id ? 50 : 1,
+                                }}
+                              >
+                                <div style={{ width: element.properties.layout?.width || "auto" }}>
+                                  <PreviewElement
+                                    element={element}
+                                    value={elementStates[element.id]}
+                                    onChange={(value) => setElementState(element.id, value)}
+                                  />
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
+
+                      {!isPreviewMode && (
+                        <div className="w-80 flex flex-col gap-4">
+                          <div className="flex flex-col gap-2">
+                            <button
+                              onClick={() => setActiveTab('elements')}
+                              className={`p-2 rounded flex items-center gap-2 ${
+                                activeTab === 'elements'
+                                  ? theme === 'dark'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-blue-500 text-white'
+                                  : theme === 'dark'
+                                  ? 'hover:bg-gray-700'
+                                  : 'hover:bg-gray-200'
+                              }`}
+                            >
+                              <Layers className="w-4 h-4" />
+                              Elements
+                            </button>
+                            <button
+                              onClick={() => setActiveTab('style')}
+                              className={`p-2 rounded flex items-center gap-2 ${
+                                activeTab === 'style'
+                                  ? theme === 'dark'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-blue-500 text-white'
+                                  : theme === 'dark'
+                                  ? 'hover:bg-gray-700'
+                                  : 'hover:bg-gray-200'
+                              }`}
+                            >
+                              <Palette className="w-4 h-4" />
+                              Style
+                            </button>
+                            <button
+                              onClick={() => setActiveTab('data')}
+                              className={`p-2 rounded flex items-center gap-2 ${
+                                activeTab === 'data'
+                                  ? theme === 'dark'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-blue-500 text-white'
+                                  : theme === 'dark'
+                                  ? 'hover:bg-gray-700'
+                                  : 'hover:bg-gray-200'
+                              }`}
+                            >
+                              <Table2 className="w-4 h-4" />
+                              Data
+                            </button>
+                          </div>
+
+                          <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
+                            theme === "dark" ? "bg-gray-800" : "bg-white"
+                          }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
+                            {activeTab === 'elements' && (
+                              <ComponentTree
+                                elements={elements}
+                                selectedElement={selectedElement}
+                                onSelect={selectElement}
+                                theme={theme}
+                              />
+                            )}
+                            {activeTab === 'style' && selectedElement && (
+                              <StyleEditor
+                                elementId={selectedElement}
+                                onUpdate={handleUpdateElement}
+                                theme={theme}
+                                onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
+                              />
+                            )}
+                            {activeTab === 'data' && (
+                              <DataTab
+                                elements={elements}
+                                onUpdateElementData={handleUpdateElement}
+                                theme={theme}
+                              />
+                            )}
+                            {activeTab === 'style' && !selectedElement && (
+                              <div className="text-center text-gray-500">
+                                Select an element to edit its style
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            } 
+                  </div>
+                </SignedIn>
+                <SignedOut>
+                  <RedirectToSignIn />
+                </SignedOut>
+              </>
+            }
           />
+          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
