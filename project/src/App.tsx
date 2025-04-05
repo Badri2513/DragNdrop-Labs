@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Layers,
   Type,
@@ -15,7 +15,8 @@ import {
   Group,
   Ungroup,
   Trash2,
-  Eye
+  Eye,
+  Share2
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
@@ -39,8 +40,24 @@ function App() {
     removeElement,
     groupElements,
     ungroupElements,
-    togglePreviewMode
+    togglePreviewMode,
+    loadDesign
   } = useStore();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const designParam = params.get('design');
+    
+    if (designParam) {
+      try {
+        const decodedData = JSON.parse(atob(designParam));
+        loadDesign(decodedData);
+      } catch (error) {
+        console.error('Error loading design from URL:', error);
+        alert('Invalid design data in URL');
+      }
+    }
+  }, [loadDesign]);
 
   const toolboxItems = [
     { type: "button", icon: ButtonIcon, label: "Button" },
@@ -249,11 +266,33 @@ function App() {
                   </Droppable>
                 </div>
 
-                {/* {selectedElement && (
-                  <div className={`mt-4 rounded-lg shadow ${theme === "dark" ? "bg-gray-800" : "bg-white"}`}>
-                    <StyleEditor elementId={selectedElement} />
+                <div className={`mt-4 rounded-lg shadow p-4 ${
+                  theme === "dark" ? "bg-gray-800" : "bg-white"
+                }`}>
+                  <h2 className="font-semibold mb-4">Export & Share</h2>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleExportJSON}
+                      className={`w-full flex items-center gap-2 p-3 rounded transition-colors
+                        ${theme === "dark" 
+                          ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                          : "bg-blue-500 hover:bg-blue-600 text-white"}`}
+                    >
+                      <Download className="w-4 h-4" />
+                      Export to JSON
+                    </button>
+                    <button
+                      onClick={handleShare}
+                      className={`w-full flex items-center gap-2 p-3 rounded transition-colors
+                        ${theme === "dark" 
+                          ? "bg-green-600 hover:bg-green-700 text-white" 
+                          : "bg-green-500 hover:bg-green-600 text-white"}`}
+                    >
+                      <Share2 className="w-4 h-4" />
+                      Share Design
+                    </button>
                   </div>
-                )} */}
+                </div>
               </div>
             )}
 
