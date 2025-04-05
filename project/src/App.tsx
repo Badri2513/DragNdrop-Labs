@@ -19,7 +19,9 @@ import {
   Trash2,
   Eye,
   Share2,
-  Palette
+  Palette,
+  FileJson,
+  FileCode
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
@@ -88,19 +90,20 @@ function App() {
     id: string;
     name: string;
     lastModified: string;
-  }>>([]);
+  }>>(() => {
+    // Load projects from localStorage on initial render
+    const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+    return savedProjects ? JSON.parse(savedProjects) : [];
+  });
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
 
   // Load saved data from localStorage on initial render
   useEffect(() => {
-    const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
     const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
     const savedCanvasDimensions = localStorage.getItem(STORAGE_KEYS.CANVAS_DIMENSIONS);
     const savedElements = localStorage.getItem(STORAGE_KEYS.ELEMENTS);
     const savedElementStates = localStorage.getItem(STORAGE_KEYS.ELEMENT_STATES);
 
-    if (savedProjects) {
-      setProjects(JSON.parse(savedProjects));
-    }
     if (savedTheme && savedTheme !== theme) {
       toggleTheme(); // Just toggle if the saved theme is different
     }
@@ -138,6 +141,41 @@ function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ELEMENT_STATES, JSON.stringify(elementStates));
   }, [elementStates]);
+
+  // Save project data to localStorage whenever it changes
+  useEffect(() => {
+    const projectData = {
+      elements,
+      elementStates,
+      theme,
+      canvasWidth,
+      canvasHeight,
+      selectedElement,
+      isPreviewMode,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('dragndrop-project', JSON.stringify(projectData));
+  }, [elements, elementStates, theme, canvasWidth, canvasHeight, selectedElement, isPreviewMode]);
+
+  // Load project data from localStorage on initial load
+  useEffect(() => {
+    const savedProject = localStorage.getItem('dragndrop-project');
+    if (savedProject) {
+      try {
+        const projectData = JSON.parse(savedProject);
+        loadDesign(projectData);
+        // Restore editor state
+        if (projectData.selectedElement) {
+          selectElement(projectData.selectedElement);
+        }
+        if (projectData.isPreviewMode) {
+          togglePreviewMode();
+        }
+      } catch (error) {
+        console.error('Error loading saved project:', error);
+      }
+    }
+  }, [loadDesign, selectElement, togglePreviewMode]);
 
   const handleAddTable = () => {
     const newTable = {
@@ -301,6 +339,10 @@ function App() {
       elements,
       elementStates,
       theme,
+      canvasWidth,
+      canvasHeight,
+      selectedElement,
+      isPreviewMode,
       timestamp: new Date().toISOString()
     };
     
@@ -317,11 +359,244 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportHTML = () => {
+    // Helper function to convert camelCase to kebab-case
+    const toKebabCase = (str: string) => {
+      return str.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
+    };
+
+    // Helper function to convert style object to CSS string
+    const styleToCSS = (style: Record<string, any>) => {
+      return Object.entries(style)
+        .map(([key, value]) => {
+          // Convert camelCase to kebab-case
+          const cssKey = toKebabCase(key);
+          // Handle special cases
+          if (key === 'backgroundColor') return `background-color: ${value}`;
+          if (key === 'textColor') return `color: ${value}`;
+          if (key === 'borderRadius') return `border-radius: ${value}`;
+          if (key === 'fontSize') return `font-size: ${value}`;
+          return `${cssKey}: ${value}`;
+        })
+        .join('; ');
+    };
+
+    // Generate HTML for the canvas content
+    const canvasContent = elements.map(element => {
+      const style = {
+        ...element.properties.layout,
+        ...element.properties.style,
+        position: 'absolute',
+        left: element.properties.layout?.left || '0',
+        top: element.properties.layout?.top || '0',
+        transform: `translate(${element.properties.layout?.left || '0'}, ${element.properties.layout?.top || '0'})`,
+        width: element.properties.layout?.width || 'auto',
+        height: element.properties.layout?.height || 'auto',
+        'background-color': element.properties.style?.backgroundColor || 'transparent',
+        color: element.properties.style?.textColor || 'inherit',
+        padding: element.properties.style?.padding || '0',
+        'border-radius': element.properties.style?.borderRadius || '0',
+        'font-size': element.properties.style?.fontSize || 'inherit',
+      };
+
+      let content = '';
+      switch (element.type) {
+        case 'button':
+          content = `<button style="${styleToCSS(style)}" onclick="handleButtonClick('${element.id}')">${elementStates[element.id] || element.properties.text || 'Button'}</button>`;
+          break;
+        case 'text':
+          content = `<div style="${styleToCSS(style)}" contenteditable="true" onblur="updateText('${element.id}', this.textContent)">${elementStates[element.id] || element.properties.text || 'Text'}</div>`;
+          break;
+        case 'input':
+          content = `<input type="text" style="${styleToCSS(style)}" value="${elementStates[element.id] || ''}" placeholder="${element.properties.text || 'Input'}" onchange="updateInput('${element.id}', this.value)">`;
+          break;
+        case 'image':
+          content = `<div style="${styleToCSS(style)}" class="image-container">
+            <img src="${elementStates[element.id] || ''}" alt="Image" style="width: 100%; height: 100%; object-fit: cover;">
+            <input type="file" accept="image/*" onchange="handleImageUpload('${element.id}', this)" style="display: none;">
+            <button onclick="document.querySelector('.image-container input[type=file]').click()">Change Image</button>
+          </div>`;
+          break;
+        case 'card':
+          content = `
+            <div style="${styleToCSS(style)}" class="card">
+              <h3 contenteditable="true" onblur="updateCardTitle('${element.id}', this.textContent)">${element.properties.text || 'Card Title'}</h3>
+              <p contenteditable="true" onblur="updateCardContent('${element.id}', this.textContent)">${elementStates[element.id] || 'Card content'}</p>
+            </div>
+          `;
+          break;
+        case 'container':
+          content = `<div style="${styleToCSS(style)}" class="container">
+            <div contenteditable="true" onblur="updateContainerContent('${element.id}', this.textContent)">${elementStates[element.id] || element.properties.text || 'Container'}</div>
+          </div>`;
+          break;
+        default:
+          content = '';
+      }
+      return content;
+    }).join('\n');
+
+    // Create the complete HTML file with all necessary scripts and styles
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DragNdrop Design</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: ${theme === 'dark' ? '#1a1a1a' : '#ffffff'};
+      color: ${theme === 'dark' ? '#ffffff' : '#000000'};
+    }
+    .canvas {
+      position: relative;
+      width: ${canvasWidth}px;
+      height: ${canvasHeight}px;
+      margin: 0 auto;
+      background-color: ${theme === 'dark' ? '#2d2d2d' : '#f5f5f5'};
+      border: 1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'};
+      overflow: hidden;
+    }
+    .image-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .image-container button {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      padding: 5px 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .card {
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .container {
+      padding: 20px;
+      border: 2px dashed ${theme === 'dark' ? '#404040' : '#e0e0e0'};
+      border-radius: 8px;
+    }
+    [contenteditable="true"] {
+      outline: none;
+    }
+    [contenteditable="true"]:focus {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    ${canvasContent}
+  </div>
+
+  <script>
+    // Element state management
+    const elementStates = ${JSON.stringify(elementStates)};
+
+    // Update functions for different element types
+    function updateText(id, content) {
+      elementStates[id] = content;
+      console.log('Text updated:', id, content);
+    }
+
+    function updateInput(id, value) {
+      elementStates[id] = value;
+      console.log('Input updated:', id, value);
+    }
+
+    function updateCardTitle(id, title) {
+      elementStates[id] = { ...elementStates[id], title };
+      console.log('Card title updated:', id, title);
+    }
+
+    function updateCardContent(id, content) {
+      elementStates[id] = { ...elementStates[id], content };
+      console.log('Card content updated:', id, content);
+    }
+
+    function updateContainerContent(id, content) {
+      elementStates[id] = content;
+      console.log('Container content updated:', id, content);
+    }
+
+    function handleButtonClick(id) {
+      console.log('Button clicked:', id);
+      // Add custom button click handling here
+    }
+
+    function handleImageUpload(id, input) {
+      const file = input.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = document.querySelector(\`#\${id} img\`);
+          if (img) {
+            img.src = e.target.result;
+            elementStates[id] = e.target.result;
+            console.log('Image updated:', id);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // Save state to localStorage
+    function saveState() {
+      localStorage.setItem('dragndrop_states', JSON.stringify(elementStates));
+    }
+
+    // Load state from localStorage
+    function loadState() {
+      const savedStates = localStorage.getItem('dragndrop_states');
+      if (savedStates) {
+        Object.assign(elementStates, JSON.parse(savedStates));
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      // Add auto-save
+      setInterval(saveState, 5000);
+    });
+  </script>
+</body>
+</html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dragndrop-design-${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleShare = () => {
     const designData = {
       elements,
       elementStates,
       theme,
+      canvasWidth,
+      canvasHeight,
+      selectedElement,
+      isPreviewMode,
       timestamp: new Date().toISOString()
     };
     
@@ -488,6 +763,48 @@ function App() {
                         DragNdrop Labs
                       </h1>
                       <div className="flex gap-2">
+                        <div className="relative group">
+                          <button
+                            onClick={() => setShowDownloadOptions(true)}
+                            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                            title="Download Design"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          {showDownloadOptions && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
+                              <div className="p-2">
+                                <button
+                                  onClick={() => {
+                                    handleExportJSON();
+                                    setShowDownloadOptions(false);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                >
+                                  <FileJson className="w-4 h-4" />
+                                  Download as JSON
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    handleExportHTML();
+                                    setShowDownloadOptions(false);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                >
+                                  <FileCode className="w-4 h-4" />
+                                  Download as HTML
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={handleShare}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Share Design"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={togglePreviewMode}
                           className={`p-2 rounded ${
