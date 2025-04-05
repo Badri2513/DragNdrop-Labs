@@ -46,6 +46,7 @@ interface State {
   toggleTheme: () => void;
   groupElements: (elementIds: string[]) => void;
   ungroupElements: (groupId: string) => void;
+  loadDesign: (designData: { elements: Element[]; elementStates: Record<string, string>; theme: 'light' | 'dark' }) => void;
 }
 
 const useStore = create<State>((set) => ({
@@ -219,6 +220,20 @@ const useStore = create<State>((set) => ({
           future: [],
         },
       };
+    });
+  },
+
+  loadDesign: (designData) => {
+    set({
+      elements: designData.elements,
+      elementStates: designData.elementStates,
+      theme: designData.theme,
+      history: {
+        past: [],
+        present: designData.elements,
+        future: [],
+      },
+      selectedElement: null,
     });
   },
 }));

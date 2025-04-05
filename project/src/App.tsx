@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Layers,
   Type,
@@ -14,7 +14,8 @@ import {
   CreditCard,
   Group,
   Ungroup,
-  Trash2
+  Trash2,
+  Share2
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
@@ -35,8 +36,24 @@ function App() {
     selectElement,
     removeElement,
     groupElements,
-    ungroupElements
+    ungroupElements,
+    loadDesign
   } = useStore();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const designParam = params.get('design');
+    
+    if (designParam) {
+      try {
+        const decodedData = JSON.parse(atob(designParam));
+        loadDesign(decodedData);
+      } catch (error) {
+        console.error('Error loading design from URL:', error);
+        alert('Invalid design data in URL');
+      }
+    }
+  }, [loadDesign]);
 
   const toolboxItems = [
     { type: 'button', icon: ButtonIcon, label: 'Button' },
@@ -80,15 +97,74 @@ function App() {
     }
   };
 
+  const handleExportJSON = () => {
+    const designData = {
+      elements,
+      elementStates,
+      theme,
+      timestamp: new Date().toISOString()
+    };
+    
+    const jsonString = JSON.stringify(designData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dragndrop-design-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleShare = () => {
+    const designData = {
+      elements,
+      elementStates,
+      theme,
+      timestamp: new Date().toISOString()
+    };
+    
+    const encodedData = btoa(JSON.stringify(designData));
+    const shareUrl = `${window.location.origin}${window.location.pathname}?design=${encodedData}`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: 'My DragNdrop Design',
+        text: 'Check out my design created with DragNdrop Labs!',
+        url: shareUrl
+      }).catch(console.error);
+    } else {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert('Share link copied to clipboard!');
+      }).catch(console.error);
+    }
+  };
+
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-gray-100'}`}>
       <div className="container mx-auto p-4">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Layers className="w-6 h-6" />
-            No-Code Builder
+            DragNdrop Labs
           </h1>
           <div className="flex gap-2">
+            <button
+              onClick={handleExportJSON}
+              className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+              title="Export to JSON"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleShare}
+              className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+              title="Share Design"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
             <button
               onClick={undo}
               className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
