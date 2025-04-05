@@ -1,21 +1,17 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 
-type ElementType = 'button' | 'text' | 'input' | 'table' | 'container' | 'image' | 'card';
+export type ElementType = 'button' | 'text' | 'input' | 'table' | 'container' | 'image' | 'card';
 
 export interface Element {
   id: string;
   type: ElementType;
   properties: {
     text?: string;
-<<<<<<< HEAD
     onClick?: string;
     href?: string;
-=======
->>>>>>> main
     value?: string;
-    href?: string;
-    type?: string;
+    type?: 'button' | 'submit' | 'reset';
     disabled?: boolean;
     placeholder?: string;
     required?: boolean;
@@ -244,7 +240,16 @@ const useStore = create<State>((set) => ({
   setElementState: (id, value) => {
     set((state) => {
       const element = state.elements.find(el => el.id === id);
-      if (element?.type === 'container') {
+      if (!element) {
+        // Just update the state if element not found
+        return { elementStates: { ...state.elementStates, [id]: value } };
+      }
+
+      // Store the value in elementStates regardless of type
+      const updatedElementStates = { ...state.elementStates, [id]: value };
+      
+      // Different handling based on element type
+      if (element.type === 'container') {
         try {
           const newProperties = JSON.parse(value);
           const newElements = state.elements.map(el => 
@@ -254,17 +259,17 @@ const useStore = create<State>((set) => ({
           );
           saveState({ 
             elements: newElements,
-            elementStates: { ...state.elementStates, [id]: value } 
+            elementStates: updatedElementStates
           });
           return {
             elements: newElements,
-            elementStates: { ...state.elementStates, [id]: value }
+            elementStates: updatedElementStates
           };
         } catch (e) {
-          saveState({ elementStates: { ...state.elementStates, [id]: value } });
-          return { elementStates: { ...state.elementStates, [id]: value } };
+          saveState({ elementStates: updatedElementStates });
+          return { elementStates: updatedElementStates };
         }
-      } else if (element?.type === 'table') {
+      } else if (element.type === 'table') {
         try {
           const newData = JSON.parse(value);
           const newElements = state.elements.map(el => 
@@ -274,31 +279,42 @@ const useStore = create<State>((set) => ({
           );
           saveState({ 
             elements: newElements,
-            elementStates: { ...state.elementStates, [id]: value } 
+            elementStates: updatedElementStates
           });
           return {
             elements: newElements,
-            elementStates: { ...state.elementStates, [id]: value }
+            elementStates: updatedElementStates
           };
         } catch (e) {
-          saveState({ elementStates: { ...state.elementStates, [id]: value } });
-          return { elementStates: { ...state.elementStates, [id]: value } };
+          saveState({ elementStates: updatedElementStates });
+          return { elementStates: updatedElementStates };
         }
+      } else if (element.type === 'text' || element.type === 'input') {
+        // For text and input, just update the element state without trying to parse JSON
+        saveState({ elementStates: updatedElementStates });
+        return { elementStates: updatedElementStates };
       } else {
-        // For other element types, update the properties directly
-        const newElements = state.elements.map(el => 
-          el.id === id 
-            ? { ...el, properties: { ...el.properties, ...JSON.parse(value) } }
-            : el
-        );
-        saveState({ 
-          elements: newElements,
-          elementStates: { ...state.elementStates, [id]: value } 
-        });
-        return {
-          elements: newElements,
-          elementStates: { ...state.elementStates, [id]: value }
-        };
+        // For other element types, try to update properties if value is valid JSON
+        try {
+          const parsedValue = JSON.parse(value);
+          const newElements = state.elements.map(el => 
+            el.id === id 
+              ? { ...el, properties: { ...el.properties, ...parsedValue } }
+              : el
+          );
+          saveState({ 
+            elements: newElements,
+            elementStates: updatedElementStates
+          });
+          return {
+            elements: newElements,
+            elementStates: updatedElementStates
+          };
+        } catch (e) {
+          // If not valid JSON, just update the element state
+          saveState({ elementStates: updatedElementStates });
+          return { elementStates: updatedElementStates };
+        }
       }
     });
   },
