@@ -8,6 +8,11 @@ export interface Element {
   type: ElementType;
   properties: {
     text?: string;
+<<<<<<< HEAD
+    onClick?: string;
+    href?: string;
+=======
+>>>>>>> main
     value?: string;
     href?: string;
     type?: string;
