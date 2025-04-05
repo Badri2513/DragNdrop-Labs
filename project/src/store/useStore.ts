@@ -1,29 +1,47 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 
+type ElementType = 'button' | 'text' | 'input' | 'table' | 'container' | 'image' | 'card';
+
 export interface Element {
   id: string;
-  type: 'button' | 'text' | 'input' | 'table' | 'container' | 'image' | 'card';
+  type: ElementType;
   properties: {
     text?: string;
+<<<<<<< HEAD
     onClick?: string;
     href?: string;
+=======
+>>>>>>> main
     value?: string;
+    href?: string;
+    type?: string;
+    disabled?: boolean;
+    placeholder?: string;
+    required?: boolean;
     style?: {
       backgroundColor?: string;
       textColor?: string;
       padding?: string;
       borderRadius?: string;
       fontSize?: string;
+      opacity?: string;
+      visibility?: string;
+      borderStyle?: string;
+      borderWidth?: string;
+      borderColor?: string;
+      hoverBackgroundColor?: string;
+      hoverTextColor?: string;
     };
     layout?: {
-      width?: string;
-      height?: string;
-      alignment?: 'left' | 'center' | 'right';
       position?: string;
       left?: string;
       top?: string;
+      width?: string;
+      height?: string;
       transform?: string;
+      alignment?: 'left' | 'center' | 'right';
+      zIndex?: string;
     };
     data?: {
       headers: string[];
@@ -62,7 +80,14 @@ interface State {
   groupElements: (elementIds: string[]) => void;
   ungroupElements: (groupId: string) => void;
   togglePreviewMode: () => void;
-  loadDesign: (designData: { elements: Element[]; elementStates: Record<string, string>; theme: 'light' | 'dark'; canvasWidth: number; canvasHeight: number }) => void;
+  loadDesign: (designData: { 
+    elements: Element[]; 
+    elementStates: Record<string, string>; 
+    theme: 'light' | 'dark'; 
+    canvasWidth: number; 
+    canvasHeight: number;
+    isPreviewMode?: boolean;
+  }) => void;
   setElements: (elements: any[]) => void;
   setSelectedElement: (id: string | null) => void;
   setTheme: (theme: 'light' | 'dark') => void;
@@ -78,8 +103,19 @@ const saveState = (state: Partial<State>) => {
     theme: state.theme || currentState.theme,
     canvasWidth: state.canvasWidth || currentState.canvasWidth,
     canvasHeight: state.canvasHeight || currentState.canvasHeight,
+    isPreviewMode: state.isPreviewMode || currentState.isPreviewMode,
   };
+  
+  // Save to localStorage
   localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+  
+  // Also save individual element states for better persistence
+  if (newState.elements) {
+    localStorage.setItem(`${STORAGE_KEY}_elements`, JSON.stringify(newState.elements));
+  }
+  if (newState.elementStates) {
+    localStorage.setItem(`${STORAGE_KEY}_elementStates`, JSON.stringify(newState.elementStates));
+  }
 };
 
 const useStore = create<State>((set) => ({
@@ -296,12 +332,23 @@ const useStore = create<State>((set) => ({
                   ...el.properties.layout,
                   left: `${x}px`,
                   top: `${y}px`,
+                  transform: `translate(${x}px, ${y}px)`,
+                  position: "absolute",
+                  width: el.properties.layout?.width || "fit-content",
+                  height: el.properties.layout?.height || "auto",
+                  alignment: el.properties.layout?.alignment || "left"
                 },
               },
             }
           : el
       );
-      saveState({ elements: newElements });
+      
+      // Save both the elements and their states
+      saveState({ 
+        elements: newElements,
+        elementStates: state.elementStates
+      });
+      
       return {
         elements: newElements,
         history: {
@@ -397,26 +444,67 @@ const useStore = create<State>((set) => ({
   togglePreviewMode: () => {
     set((state) => {
       const newPreviewMode = !state.isPreviewMode;
-      saveState({ isPreviewMode: newPreviewMode });
+      saveState({ 
+        isPreviewMode: newPreviewMode,
+        elementStates: state.elementStates 
+      });
       return { isPreviewMode: newPreviewMode };
     });
   },
 
-  loadDesign: (designData) => {
+  loadDesign: (designData: { 
+    elements: Element[]; 
+    elementStates: Record<string, string>; 
+    theme: 'light' | 'dark'; 
+    canvasWidth: number; 
+    canvasHeight: number;
+    isPreviewMode?: boolean;
+  }) => {
+    const loadedElements = designData.elements.map(element => {
+      const left = element.properties.layout?.left || "50%";
+      const top = element.properties.layout?.top || "50%";
+      const transform = element.properties.layout?.transform || `translate(${left}, ${top})`;
+      
+      return {
+        ...element,
+        properties: {
+          ...element.properties,
+          layout: {
+            position: "absolute",
+            left,
+            top,
+            transform,
+            width: element.properties.layout?.width || "fit-content",
+            height: element.properties.layout?.height || "auto",
+            alignment: element.properties.layout?.alignment || "left",
+            ...element.properties.layout
+          }
+        }
+      };
+    });
+
     set({
-      elements: designData.elements,
+      elements: loadedElements,
       elementStates: designData.elementStates,
       theme: designData.theme,
       canvasWidth: designData.canvasWidth || 800,
       canvasHeight: designData.canvasHeight || 600,
       history: {
         past: [],
-        present: designData.elements,
+        present: loadedElements,
         future: [],
       },
       selectedElement: null,
+      isPreviewMode: designData.isPreviewMode || false
     });
-    saveState({ elements: designData.elements, elementStates: designData.elementStates, theme: designData.theme, canvasWidth: designData.canvasWidth || 800, canvasHeight: designData.canvasHeight || 600 });
+    saveState({ 
+      elements: loadedElements, 
+      elementStates: designData.elementStates, 
+      theme: designData.theme, 
+      canvasWidth: designData.canvasWidth || 800, 
+      canvasHeight: designData.canvasHeight || 600,
+      isPreviewMode: designData.isPreviewMode || false
+    });
   },
 
   setElements: (elements) => {
@@ -436,10 +524,52 @@ const useStore = create<State>((set) => ({
 
 // Load saved state from local storage on initialization
 const savedState = localStorage.getItem(STORAGE_KEY);
-if (savedState) {
+const savedElements = localStorage.getItem(`${STORAGE_KEY}_elements`);
+const savedElementStates = localStorage.getItem(`${STORAGE_KEY}_elementStates`);
+
+if (savedState || savedElements || savedElementStates) {
   try {
-    const parsedState = JSON.parse(savedState);
-    useStore.getState().loadDesign(parsedState);
+    const parsedState = savedState ? JSON.parse(savedState) : {};
+    const parsedElements = savedElements ? JSON.parse(savedElements) : parsedState.elements || [];
+    const parsedElementStates = savedElementStates ? JSON.parse(savedElementStates) : parsedState.elementStates || {};
+
+    // Ensure all elements have proper layout properties
+    const loadedElements = parsedElements.map((element: Element) => {
+      // Extract position values from saved layout
+      const left = element.properties.layout?.left || "50%";
+      const top = element.properties.layout?.top || "50%";
+      const transform = element.properties.layout?.transform || `translate(${left}, ${top})`;
+      
+      // Parse pixel values if they exist
+      const leftPx = left.includes('px') ? parseInt(left) : 0;
+      const topPx = top.includes('px') ? parseInt(top) : 0;
+      
+      return {
+        ...element,
+        properties: {
+          ...element.properties,
+          layout: {
+            position: "absolute",
+            left: `${leftPx}px`,
+            top: `${topPx}px`,
+            transform: `translate(${leftPx}px, ${topPx}px)`,
+            width: element.properties.layout?.width || "fit-content",
+            height: element.properties.layout?.height || "auto",
+            alignment: element.properties.layout?.alignment || "left",
+            ...element.properties.layout
+          }
+        }
+      };
+    });
+
+    useStore.getState().loadDesign({
+      elements: loadedElements,
+      elementStates: parsedElementStates,
+      theme: parsedState.theme || 'light',
+      canvasWidth: parsedState.canvasWidth || 800,
+      canvasHeight: parsedState.canvasHeight || 600,
+      isPreviewMode: parsedState.isPreviewMode || false
+    });
   } catch (error) {
     console.error('Error loading saved state:', error);
   }

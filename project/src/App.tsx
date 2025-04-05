@@ -21,8 +21,12 @@ import {
   Share2,
   Palette,
   FileJson,
+<<<<<<< HEAD
   FileCode,
   Settings
+=======
+  FileCode
+>>>>>>> main
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
@@ -834,6 +838,8 @@ function App() {
                                   Download as HTML
                                 </button>
                               </div>
+<<<<<<< HEAD
+=======
                             </div>
                           )}
                         </div>
@@ -901,6 +907,256 @@ function App() {
                         </button>
                       </div>
                     </div>
+
+                    <div className="flex gap-4">
+                      <div className="w-64">
+                        <div
+                          className={`rounded-lg shadow p-4 ${
+                            theme === "dark" ? "bg-gray-800" : "bg-white"
+                          }`}
+                        >
+                          <h2 className="font-semibold mb-4">Component Tree</h2>
+                          <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+                            <ComponentTree
+                              elements={elements}
+                              selectedElement={selectedElement}
+                              onSelect={selectElement}
+                              theme={theme}
+                            />
+                          </div>
+                        </div>
+
+                        {!isPreviewMode && (
+                          <div
+                            className={`rounded-lg shadow p-4 mt-4 ${
+                              theme === "dark" ? "bg-gray-800" : "bg-white"
+                            }`}
+                          >
+                            <h2 className="font-semibold mb-4">Toolbox</h2>
+                            <div className="space-y-2">
+                              {toolboxItems.map((item) => (
+                                <div
+                                  key={item.type}
+                                  onClick={() => addElement(item.type as ElementType)}
+                                  className={`flex items-center gap-2 p-3 rounded cursor-pointer
+                                    ${
+                                      theme === "dark"
+                                        ? "bg-gray-700 hover:bg-gray-600"
+                                        : "bg-gray-50 hover:bg-gray-100"
+                                    }`}
+                                >
+                                  <item.icon className="w-4 h-4" />
+                                  {item.label}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div
+                        className={`flex-1 relative flex justify-center items-center ${
+                          isPreviewMode ? "pt-8" : ""
+                        }`}
+                      >
+                        {isPreviewMode ? (
+                          <PhoneTypeSelector
+                            selectedType={selectedPhoneType}
+                            onSelectType={(type) => {
+                              setSelectedPhoneType(type);
+                              if (type.name !== 'Custom') {
+                                setCanvasDimensions(type.width, type.height);
+                              }
+                            }}
+                            customWidth={canvasWidth}
+                            customHeight={canvasHeight}
+                            onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
+                            onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
+                            elements={elements}
+                            elementStates={elementStates}
+                            onElementStateChange={setElementState}
+                            canvasWidth={canvasWidth}
+                            canvasHeight={canvasHeight}
+                          />
+                        ) : (
+                          <div
+                            id="canvas"
+                            className={`rounded-lg shadow p-4 relative overflow-hidden ${
+                              theme === "dark" ? "bg-gray-800" : "bg-white"
+                            }`}
+                            style={{
+                              width: `${canvasWidth}px`,
+                              height: `${canvasHeight}px`,
+                            }}
+                            onClick={handleCanvasClick}
+                          >
+                            <CanvasGuides
+                              width={canvasWidth}
+                              height={canvasHeight}
+                              theme={theme}
+                              elements={elements}
+                              draggingElement={draggingElement || undefined}
+                              onSnap={handleSnap}
+                            />
+                            {elements.map((element) => (
+                              <div
+                                key={element.id}
+                                id={element.id}
+                                onMouseDown={(e) => handleMouseDown(e, element.id)}
+                                className={`inline-block ${
+                                  !isPreviewMode && selectedElement === element.id
+                                    ? "ring-2 ring-blue-500"
+                                    : ""
+                                } ${draggingElement?.id === element.id ? 'cursor-grabbing' : 'cursor-grab'}`}
+                                style={{
+                                  position: (element.properties.layout?.position as Position) || "absolute",
+                                  left: "0",
+                                  top: "0",
+                                  transform: element.properties.layout?.transform || `translate(${element.properties.layout?.left || "50%"}, ${element.properties.layout?.top || "50%"})`,
+                                  width: element.properties.layout?.width || "fit-content",
+                                  height: element.properties.layout?.height || "auto",
+                                  transition: draggingElement?.id === element.id ? 'none' : 'all 0.2s ease-out',
+                                  zIndex: draggingElement?.id === element.id ? 50 : 1,
+                                }}
+                              >
+                                <div style={{ width: element.properties.layout?.width || "auto" }}>
+                                  <PreviewElement
+                                    element={element}
+                                    value={elementStates[element.id]}
+                                    onChange={(value) => setElementState(element.id, value)}
+                                    isPreviewMode={isPreviewMode}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="w-80 flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => setActiveTab('style')}
+                            className={`p-2 rounded flex items-center gap-2 ${
+                              activeTab === 'style'
+                                ? theme === 'dark'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-500 text-white'
+                                : theme === 'dark'
+                                ? 'hover:bg-gray-700'
+                                : 'hover:bg-gray-200'
+                            }`}
+                          >
+                            <Palette className="w-4 h-4" />
+                            Style
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('data')}
+                            className={`p-2 rounded flex items-center gap-2 ${
+                              activeTab === 'data'
+                                ? theme === 'dark'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-500 text-white'
+                                : theme === 'dark'
+                                ? 'hover:bg-gray-700'
+                                : 'hover:bg-gray-200'
+                            }`}
+                          >
+                            <Table2 className="w-4 h-4" />
+                            Data
+                          </button>
+                        </div>
+
+                        <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
+                          theme === "dark" ? "bg-gray-800" : "bg-white"
+                        }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
+                          {activeTab === 'style' && selectedElement && (
+                            <StyleEditor
+                              elementId={selectedElement}
+                              onUpdate={handleUpdateElement}
+                              theme={theme}
+                              onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
+                            />
+                          )}
+                          {activeTab === 'data' && (
+                            <DataTab
+                              elements={elements}
+                              onUpdateElementData={handleUpdateElement}
+                              theme={theme}
+                            />
+                          )}
+                          {activeTab === 'style' && !selectedElement && (
+                            <div className="text-center text-gray-500">
+                              Select an element to edit its style
+>>>>>>> main
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={handleShare}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Share Design"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={togglePreviewMode}
+                          className={`p-2 rounded ${
+                            theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-200"
+                          }`}
+                          title={isPreviewMode ? "Exit Preview" : "Preview"}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={undo}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Undo"
+                        >
+                          <Undo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={redo}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Redo"
+                        >
+                          <Redo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={toggleTheme}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Toggle Theme"
+                        >
+                          {theme === "light" ? (
+                            <Moon className="w-4 h-4" />
+                          ) : (
+                            <Sun className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={handleGroupSelected}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Group Elements"
+                        >
+                          <Group className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleUngroup}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Ungroup Elements"
+                        >
+                          <Ungroup className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => selectedElement && removeElement(selectedElement)}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Delete Selected"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+<<<<<<< HEAD
 
                     <div className="flex gap-4">
                       <div className="w-64">
@@ -1102,6 +1358,8 @@ function App() {
                         </div>
                       </div>
                     </div>
+=======
+>>>>>>> main
                   </div>
                 </SignedIn>
                 <SignedOut>
@@ -1169,9 +1427,12 @@ function PreviewElement({
           title={isPreviewMode && element.properties.href ? element.properties.href : undefined}
         >
           {value || element.properties.text}
+<<<<<<< HEAD
           {isPreviewMode && element.properties.href && (
             <span className="ml-1 text-xs opacity-70">↗</span>
           )}
+=======
+>>>>>>> main
         </button>
       );
     case "text":
