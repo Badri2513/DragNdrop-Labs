@@ -11,7 +11,6 @@ import {
   Sun,
   Moon,
   Image,
-  CreditCard,
   Group,
   Ungroup,
   Trash2,
@@ -72,7 +71,6 @@ function App() {
     { type: "input", icon: Type, label: "Input" },
     { type: "table", icon: Table2, label: "Table" },
     { type: "image", icon: Image, label: "Image" },
-    { type: "card", icon: CreditCard, label: "Card" },
     { type: "container", icon: Group, label: "Container" },
   ];
 
@@ -80,10 +78,15 @@ function App() {
     if (isPreviewMode) return;
     const element = e.currentTarget as HTMLElement;
     const rect = element.getBoundingClientRect();
+    
+    // Calculate the exact cursor position relative to the element
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    
     setDraggingElement({
       id,
-      startX: e.clientX - rect.left,
-      startY: e.clientY - rect.top,
+      startX: offsetX,
+      startY: offsetY,
     });
   };
 
@@ -98,13 +101,25 @@ function App() {
     const canvasRect = canvas.getBoundingClientRect();
     const elementRect = element.getBoundingClientRect();
     
-    // Calculate new position
+    // Calculate new position based on exact cursor position
     let x = e.clientX - canvasRect.left - draggingElement.startX;
     let y = e.clientY - canvasRect.top - draggingElement.startY;
 
-    // Constrain to canvas bounds
-    x = Math.max(0, Math.min(x, canvasRect.width - elementRect.width));
-    y = Math.max(0, Math.min(y, canvasRect.height - elementRect.height));
+    // Strict boundary constraints
+    const minX = 0;
+    const minY = 0;
+    const maxX = canvasRect.width - elementRect.width;
+    const maxY = canvasRect.height - elementRect.height;
+
+    // Ensure element stays within canvas bounds
+    x = Math.max(minX, Math.min(x, maxX));
+    y = Math.max(minY, Math.min(y, maxY));
+
+    // Additional checks to prevent any part of the element from leaving the canvas
+    if (x < minX) x = minX;
+    if (y < minY) y = minY;
+    if (x + elementRect.width > canvasRect.width) x = maxX;
+    if (y + elementRect.height > canvasRect.height) y = maxY;
 
     updateElementPosition(draggingElement.id, x, y);
   }, [draggingElement, updateElementPosition]);
@@ -339,7 +354,6 @@ function App() {
                       className="mb-4"
                       style={{
                         width: element.properties.layout?.width || "100%",
-                        textAlign: element.properties.layout?.alignment || "left",
                       }}
                     >
                       <PreviewElement
@@ -353,12 +367,14 @@ function App() {
               </PhoneMockup>
             ) : (
               <div
-                className={`rounded-lg shadow p-4 relative overflow-hidden ${
+                className={`rounded-lg shadow p-4 relative overflow-hidden border-2 border-gray-300 ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
                 }`}
                 style={{
                   width: `${canvasWidth}px`,
                   height: `${canvasHeight}px`,
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}
                 onClick={handleCanvasClick}
               >
@@ -381,17 +397,23 @@ function App() {
                       left: element.properties.layout?.left || "50%",
                       top: element.properties.layout?.top || "50%",
                       transform: element.properties.layout?.transform || "translate(-50%, -50%)",
-                      width: "fit-content",
+                      width: element.properties.layout?.width || "fit-content",
+                      height: element.properties.layout?.height || "auto",
                       cursor: draggingElement?.id === element.id ? "grabbing" : "grab",
+                      display: "flex",
+                      flexDirection: "column" as const,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      maxWidth: `${canvasWidth}px`,
+                      maxHeight: `${canvasHeight}px`
                     }}
                   >
-                    <div style={{ width: element.properties.layout?.width || "auto" }}>
-                      <PreviewElement
-                        element={element}
-                        value={elementStates[element.id]}
-                        onChange={(value) => setElementState(element.id, value)}
-                      />
-                    </div>
+                    <PreviewElement
+                      element={element}
+                      value={elementStates[element.id]}
+                      onChange={(value) => setElementState(element.id, value)}
+                    />
                   </div>
                 ))}
               </div>
@@ -416,12 +438,19 @@ function PreviewElement({
   value?: string;
   onChange: (value: string) => void;
 }) {
-  const style = {
-    backgroundColor: element.properties.style?.backgroundColor,
-    color: element.properties.style?.textColor,
-    padding: element.properties.style?.padding,
-    borderRadius: element.properties.style?.borderRadius,
-    fontSize: element.properties.style?.fontSize,
+  const [isResizing, setIsResizing] = useState(false);
+  const [startSize, setStartSize] = useState({ width: 0, height: 0 });
+  const [startPosition, setStartPosition] = useState({ x: 0, y: 0 });
+
+  const baseStyle: React.CSSProperties = {
+    backgroundColor: element.properties.style?.backgroundColor || 'transparent',
+    color: element.properties.style?.textColor || '#6B7280',
+    padding: element.properties.style?.padding || '8px',
+    borderRadius: element.properties.style?.borderRadius || '0px',
+    fontSize: element.properties.style?.fontSize || '16px',
+    position: 'relative' as const,
+    width: element.properties.layout?.width || 'fit-content',
+    height: element.properties.layout?.height || 'auto'
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -437,78 +466,210 @@ function PreviewElement({
     }
   };
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(true);
+    setStartPosition({ x: e.clientX, y: e.clientY });
+    
+    const currentWidth = parseInt(element.properties.layout?.width?.replace('px', '') || '200');
+    const currentHeight = parseInt(element.properties.layout?.height?.replace('px', '') || '200');
+    
+    setStartSize({
+      width: currentWidth,
+      height: currentHeight
+    });
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      const deltaX = e.clientX - startPosition.x;
+      const deltaY = e.clientY - startPosition.y;
+
+      const newWidth = Math.max(50, startSize.width + deltaX);
+      const newHeight = Math.max(50, startSize.height + deltaY);
+
+      const updatedElement = {
+        ...element,
+        properties: {
+          ...element.properties,
+          layout: {
+            ...element.properties.layout,
+            width: `${newWidth}px`,
+            height: `${newHeight}px`
+          }
+        }
+      };
+
+      onChange(JSON.stringify(updatedElement));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const ResizeHandle = () => (
+    <div 
+      className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 rounded-tl-full cursor-nw-resize"
+      onMouseDown={handleResizeStart}
+      style={{ zIndex: 1000 }}
+    />
+  );
+
+  const wrapWithResizable = (component: React.ReactNode) => (
+    <div 
+      className="relative group" 
+      style={{ 
+        width: element.properties.layout?.width || 'fit-content',
+        height: element.properties.layout?.height || 'auto',
+        position: 'relative'
+      }}
+    >
+      {component}
+      <ResizeHandle />
+    </div>
+  );
+
   switch (element.type) {
     case "button":
-      return (
+      return wrapWithResizable(
         <button
           onClick={() => {
             try {
-              // eslint-disable-next-line no-eval
               eval(element.properties.onClick || "");
             } catch (error) {
               console.error("Error executing button action:", error);
             }
           }}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          style={style}
+          style={baseStyle}
         >
           {element.properties.text}
         </button>
       );
     case "text":
-      return (
+      return wrapWithResizable(
         <div
           contentEditable
           suppressContentEditableWarning
-          onBlur={(e) => onChange(e.currentTarget.textContent || "")}
-          style={style}
-          className="outline-none"
-        >
-          {element.properties.text}
-        </div>
-      );
-    case "input":
-      return (
-        <input
-          type="text"
-          value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={element.properties.text}
-          className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          style={style}
+          onBlur={(e) => {
+            const updatedElement = {
+              ...element,
+              properties: {
+                ...element.properties,
+                text: e.currentTarget.textContent || ""
+              }
+            };
+            onChange(JSON.stringify(updatedElement));
+          }}
+          style={baseStyle}
+          className="outline-none min-w-[100px] min-h-[24px]"
+          dangerouslySetInnerHTML={{ __html: element.properties.text || "Double click to edit" }}
         />
       );
+    case "input":
+      return wrapWithResizable(
+        <div className="flex items-center gap-2" style={baseStyle}>
+          <input
+            type="text"
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={element.properties.text}
+            className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={{ ...baseStyle, width: '100%' }}
+          />
+          <button
+            onClick={() => {
+              try {
+                eval(element.properties.onSubmit || "");
+              } catch (error) {
+                console.error("Error executing input submit action:", error);
+              }
+            }}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Submit
+          </button>
+        </div>
+      );
     case "table":
-      return (
-        <div className="overflow-x-auto" style={style}>
+      return wrapWithResizable(
+        <div className="overflow-x-auto" style={baseStyle}>
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Header 1
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Header 2
-                </th>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <th
+                    key={i}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={(e) => {
+                      const updatedElement = {
+                        ...element,
+                        properties: {
+                          ...element.properties,
+                          headers: {
+                            ...element.properties.headers,
+                            [i]: e.currentTarget.textContent || `Header ${i + 1}`
+                          }
+                        }
+                      };
+                      onChange(JSON.stringify(updatedElement));
+                    }}
+                  >
+                    {element.properties.headers?.[i] || `Header ${i + 1}`}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              <tr>
-                <td className="px-6 py-4 whitespace-nowrap">Data 1</td>
-                <td className="px-6 py-4 whitespace-nowrap">Data 2</td>
-              </tr>
+              {Array.from({ length: 3 }).map((_, rowIndex) => (
+                <tr key={rowIndex}>
+                  {Array.from({ length: 3 }).map((_, colIndex) => (
+                    <td
+                      key={colIndex}
+                      className="px-6 py-4 whitespace-nowrap"
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={(e) => {
+                        const updatedElement = {
+                          ...element,
+                          properties: {
+                            ...element.properties,
+                            data: {
+                              ...element.properties.data,
+                              [`${rowIndex}-${colIndex}`]: e.currentTarget.textContent || `Data ${rowIndex + 1}-${colIndex + 1}`
+                            }
+                          }
+                        };
+                        onChange(JSON.stringify(updatedElement));
+                      }}
+                    >
+                      {element.properties.data?.[`${rowIndex}-${colIndex}`] || `Data ${rowIndex + 1}-${colIndex + 1}`}
+                    </td>
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       );
     case "image":
-      return (
-        <div style={style} className="relative group">
+      return wrapWithResizable(
+        <div style={baseStyle} className="relative group">
           {value ? (
             <img
               src={value}
               alt="Selected"
-              className="w-full h-auto rounded"
+              className="w-full h-full object-cover rounded"
+              style={{ height: element.properties.layout?.height || "auto" }}
             />
           ) : (
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px]">
@@ -525,8 +686,8 @@ function PreviewElement({
         </div>
       );
     case "card":
-      return (
-        <div className="border rounded-lg shadow-sm" style={style}>
+      return wrapWithResizable(
+        <div className="border rounded-lg shadow-sm" style={baseStyle}>
           <div className="p-4">
             <h3 className="text-lg font-semibold mb-2">
               {element.properties.text}
@@ -536,47 +697,12 @@ function PreviewElement({
         </div>
       );
     case "container":
-      return (
+      return wrapWithResizable(
         <div
           className="border-2 border-dashed border-gray-300 rounded-lg p-4 relative group"
-          style={style}
+          style={baseStyle}
         >
-          <div className="absolute top-0 right-0 flex space-x-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              className="w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize"
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                const startX = e.clientX;
-                const startY = e.clientY;
-                const startWidth = element.properties.layout?.width || '100%';
-                const startHeight = element.properties.layout?.height || 'auto';
-
-                const handleMouseMove = (e: MouseEvent) => {
-                  const deltaX = e.clientX - startX;
-                  const deltaY = e.clientY - startY;
-                  const newWidth = `calc(${startWidth} + ${deltaX}px)`;
-                  const newHeight = `calc(${startHeight} + ${deltaY}px)`;
-                  onChange(JSON.stringify({
-                    ...element.properties,
-                    layout: {
-                      ...element.properties.layout,
-                      width: newWidth,
-                      height: newHeight
-                    }
-                  }));
-                };
-
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-            />
-          </div>
-          <div className="text-center text-gray-500">
+          <div>
             {element.properties.text || "Container (Drag elements here)"}
           </div>
         </div>

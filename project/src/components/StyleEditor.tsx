@@ -201,26 +201,59 @@ export default function StyleEditor({
         <div className="space-y-2">
           <div>
             <label className="block text-sm font-medium mb-1">Width</label>
-            <input
-              type="text"
-              value={element.properties.layout?.width || '100%'}
-              onChange={(e) => handleLayoutChange('width', e.target.value)}
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {element.type === 'container' && (
-            <div>
-              <label className="block text-sm font-medium mb-1">Height</label>
+            <div className="flex gap-2">
               <input
                 type="text"
-                value={element.properties.layout?.height || 'auto'}
-                onChange={(e) => handleLayoutChange('height', e.target.value)}
-                placeholder="e.g., 200px, 50%, auto"
+                value={element.properties.layout?.width?.replace(/[^0-9.]/g, '') || '100'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const unit = element.properties.layout?.width?.match(/[a-zA-Z%]+/)?.[0] || 'px';
+                  handleLayoutChange('width', `${value}${unit}`);
+                }}
                 className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <select
+                value={element.properties.layout?.width?.match(/[a-zA-Z%]+/)?.[0] || 'px'}
+                onChange={(e) => {
+                  const value = element.properties.layout?.width?.replace(/[^0-9.]/g, '') || '100';
+                  handleLayoutChange('width', `${value}${e.target.value}`);
+                }}
+                className="w-20 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="px">px</option>
+                <option value="rem">rem</option>
+                <option value="%">%</option>
+              </select>
             </div>
-          )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Height</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={element.properties.layout?.height?.replace(/[^0-9.]/g, '') || 'auto'}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const unit = element.properties.layout?.height?.match(/[a-zA-Z%]+/)?.[0] || 'px';
+                  handleLayoutChange('height', `${value}${unit}`);
+                }}
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={element.properties.layout?.height?.match(/[a-zA-Z%]+/)?.[0] || 'px'}
+                onChange={(e) => {
+                  const value = element.properties.layout?.height?.replace(/[^0-9.]/g, '') || 'auto';
+                  handleLayoutChange('height', `${value}${e.target.value}`);
+                }}
+                className="w-20 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="px">px</option>
+                <option value="rem">rem</option>
+                <option value="%">%</option>
+              </select>
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">Alignment</label>
@@ -354,39 +387,61 @@ export default function StyleEditor({
           <div className="space-y-2">
             <div>
               <label className="block text-sm font-medium mb-1">Width</label>
-              <input
-                type="text"
-                value={element.properties.layout?.width || '100%'}
-                onChange={(e) => handleLayoutChange('width', e.target.value)}
-                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {element.type === 'container' && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Height</label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={element.properties.layout?.height || 'auto'}
-                  onChange={(e) => handleLayoutChange('height', e.target.value)}
-                  placeholder="e.g., 200px, 50%, auto"
+                  value={element.properties.layout?.width?.replace(/[^0-9.]/g, '') || '100'}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const unit = element.properties.layout?.width?.match(/[a-zA-Z%]+/)?.[0] || 'px';
+                    handleLayoutChange('width', `${value}${unit}`);
+                  }}
                   className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <select
+                  value={element.properties.layout?.width?.match(/[a-zA-Z%]+/)?.[0] || 'px'}
+                  onChange={(e) => {
+                    const value = element.properties.layout?.width?.replace(/[^0-9.]/g, '') || '100';
+                    handleLayoutChange('width', `${value}${e.target.value}`);
+                  }}
+                  className="w-20 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="px">px</option>
+                  <option value="rem">rem</option>
+                  <option value="%">%</option>
+                </select>
               </div>
-            )}
+            </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Alignment</label>
-              <select
-                value={element.properties.layout?.alignment || 'left'}
-                onChange={(e) => handleLayoutChange('alignment', e.target.value as 'left' | 'center' | 'right')}
-                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="left">Left</option>
-                <option value="center">Center</option>
-                <option value="right">Right</option>
-              </select>
+              <label className="block text-sm font-medium mb-1">Height</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={element.properties.layout?.height?.replace(/[^0-9.]/g, '') || 'auto'}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const unit = element.properties.layout?.height?.match(/[a-zA-Z%]+/)?.[0] || 'px';
+                    handleLayoutChange('height', `${value}${unit}`);
+                  }}
+                  className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  value={element.properties.layout?.height?.match(/[a-zA-Z%]+/)?.[0] || 'px'}
+                  onChange={(e) => {
+                    const value = element.properties.layout?.height?.replace(/[^0-9.]/g, '') || 'auto';
+                    handleLayoutChange('height', `${value}${e.target.value}`);
+                  }}
+                  className="w-20 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="px">px</option>
+                  <option value="rem">rem</option>
+                  <option value="%">%</option>
+                </select>
+              </div>
             </div>
+
+           
           </div>
         </div>
       </div>

@@ -98,6 +98,16 @@ const useStore = create<State>((set) => ({
         container: 'Container'
       };
 
+      const defaultSizes = {
+        button: { width: 'fit-content', height: 'auto' },
+        text: { width: 'fit-content', height: 'auto' },
+        input: { width: '200px', height: 'auto' },
+        table: { width: '100%', height: 'auto' },
+        image: { width: '200px', height: '200px' },
+        card: { width: '300px', height: 'auto' },
+        container: { width: '400px', height: '300px' }
+      };
+
       const newElement: Element = {
         id: nanoid(),
         type,
@@ -105,20 +115,21 @@ const useStore = create<State>((set) => ({
           text: defaultTexts[type] || `New ${type}`,
           ...properties,
           style: {
-            backgroundColor: '#ffffff',
-            textColor: '#000000',
-            padding: '1rem',
-            borderRadius: '0.5rem',
-            fontSize: '1rem',
+            backgroundColor: type === "button" ? "#3B82F6" : type === "card" ? "#FFFFFF" : type === "container" ? "#F3F4F6" : "transparent",
+            textColor: type === "button" ? "#FFFFFF" : type === "card" ? "#000000" : type === "container" ? "#000000" : "#000000",
+            padding: type === "button" ? "0.5rem 1rem" : type === "card" ? "1rem" : type === "container" ? "1rem" : "0",
+            borderRadius: type === "button" ? "0.25rem" : type === "card" ? "0.5rem" : type === "container" ? "0.5rem" : "0",
+            fontSize: type === "button" ? "1rem" : type === "card" ? "1rem" : type === "container" ? "1rem" : "1rem",
             ...properties.style,
           },
           layout: {
-            width: '100%',
-            alignment: 'left',
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            width: defaultSizes[type].width,
+            height: defaultSizes[type].height,
+            alignment: "left",
             ...properties.layout,
           },
         },
