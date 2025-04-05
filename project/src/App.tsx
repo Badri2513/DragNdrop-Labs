@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
-import PhoneMockup from './components/PhoneMockup';
+import PhoneTypeSelector from './components/PhoneTypeSelector';
+import ComponentTree from './components/ComponentTree';
 import useStore from './store/useStore';
 
 type ElementType = "button" | "text" | "input" | "table" | "container" | "image" | "card";
@@ -46,10 +47,16 @@ function App() {
     groupElements,
     ungroupElements,
     togglePreviewMode,
-    loadDesign
+    loadDesign,
+    setCanvasDimensions
   } = useStore();
 
   const [draggingElement, setDraggingElement] = useState<{ id: string; startX: number; startY: number } | null>(null);
+  const [selectedPhoneType, setSelectedPhoneType] = useState({
+    name: 'iPhone 14 Pro',
+    width: 393,
+    height: 852
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -269,7 +276,13 @@ function App() {
 
         <div className="flex gap-4">
           {!isPreviewMode && (
-            <div className="w-64">
+            <div className="w-64 flex flex-col gap-4">
+              <ComponentTree
+                elements={elements}
+                selectedElement={selectedElement}
+                onSelect={selectElement}
+                theme={theme}
+              />
               <div
                 className={`rounded-lg shadow p-4 ${
                   theme === "dark" ? "bg-gray-800" : "bg-white"
@@ -331,8 +344,28 @@ function App() {
             }`}
           >
             {isPreviewMode ? (
-              <PhoneMockup>
-                <div className="p-4">
+              <PhoneTypeSelector
+                selectedType={selectedPhoneType}
+                onSelectType={(type) => {
+                  setSelectedPhoneType(type);
+                  if (type.name !== 'Custom') {
+                    setCanvasDimensions(type.width, type.height);
+                  }
+                }}
+                customWidth={canvasWidth}
+                customHeight={canvasHeight}
+                onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
+                onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
+              >
+                <div
+                  className={`rounded-lg shadow p-4 relative overflow-hidden ${
+                    theme === "dark" ? "bg-gray-800" : "bg-white"
+                  }`}
+                  style={{
+                    width: `${canvasWidth}px`,
+                    height: `${canvasHeight}px`,
+                  }}
+                >
                   {elements.map((element) => (
                     <div
                       key={element.id}
@@ -350,7 +383,7 @@ function App() {
                     </div>
                   ))}
                 </div>
-              </PhoneMockup>
+              </PhoneTypeSelector>
             ) : (
               <div
                 className={`rounded-lg shadow p-4 relative overflow-hidden ${
