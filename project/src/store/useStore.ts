@@ -7,6 +7,7 @@ export interface Element {
   properties: {
     text?: string;
     onClick?: string;
+    href?: string;
     value?: string;
     style?: {
       backgroundColor?: string;

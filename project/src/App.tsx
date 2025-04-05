@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
 import {
   Layers,
   Type,
@@ -18,7 +19,10 @@ import {
   Trash2,
   Eye,
   Share2,
-  Palette
+  Palette,
+  FileJson,
+  FileCode,
+  Settings
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
@@ -92,6 +96,8 @@ function App() {
     const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
     return savedProjects ? JSON.parse(savedProjects) : [];
   });
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   // Load saved data from localStorage on initial render
   useEffect(() => {
@@ -332,9 +338,22 @@ function App() {
 
   const handleExportJSON = () => {
     const designData = {
-      elements,
+      elements: elements.map(element => ({
+        ...element,
+        properties: {
+          ...element.properties,
+          // Ensure button properties are included
+          href: element.properties.href,
+          type: element.properties.type,
+          disabled: element.properties.disabled,
+        }
+      })),
       elementStates,
       theme,
+      canvasWidth,
+      canvasHeight,
+      selectedElement,
+      isPreviewMode,
       timestamp: new Date().toISOString()
     };
     
@@ -351,11 +370,244 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleExportHTML = () => {
+    // Helper function to convert camelCase to kebab-case
+    const toKebabCase = (str: string) => {
+      return str.replace(/([a-z0-9]|(?=[A-Z]))([A-Z])/g, '$1-$2').toLowerCase();
+    };
+
+    // Helper function to convert style object to CSS string
+    const styleToCSS = (style: Record<string, any>) => {
+      return Object.entries(style)
+        .map(([key, value]) => {
+          // Convert camelCase to kebab-case
+          const cssKey = toKebabCase(key);
+          // Handle special cases
+          if (key === 'backgroundColor') return `background-color: ${value}`;
+          if (key === 'textColor') return `color: ${value}`;
+          if (key === 'borderRadius') return `border-radius: ${value}`;
+          if (key === 'fontSize') return `font-size: ${value}`;
+          return `${cssKey}: ${value}`;
+        })
+        .join('; ');
+    };
+
+    // Generate HTML for the canvas content
+    const canvasContent = elements.map(element => {
+      const style = {
+        ...element.properties.layout,
+        ...element.properties.style,
+        position: 'absolute',
+        left: element.properties.layout?.left || '0',
+        top: element.properties.layout?.top || '0',
+        transform: `translate(${element.properties.layout?.left || '0'}, ${element.properties.layout?.top || '0'})`,
+        width: element.properties.layout?.width || 'auto',
+        height: element.properties.layout?.height || 'auto',
+        'background-color': element.properties.style?.backgroundColor || 'transparent',
+        color: element.properties.style?.textColor || 'inherit',
+        padding: element.properties.style?.padding || '0',
+        'border-radius': element.properties.style?.borderRadius || '0',
+        'font-size': element.properties.style?.fontSize || 'inherit',
+      };
+
+      let content = '';
+      switch (element.type) {
+        case 'button':
+          content = `<button 
+            style="${styleToCSS(style)}" 
+            onclick="window.open('${element.properties.href || ''}', '_blank')"
+            type="${element.properties.type || 'button'}"
+            ${element.properties.disabled ? 'disabled' : ''}
+          >${elementStates[element.id] || element.properties.text || 'Button'}</button>`;
+          break;
+        case 'text':
+          content = `<div style="${styleToCSS(style)}" contenteditable="true" onblur="updateText('${element.id}', this.textContent)">${elementStates[element.id] || element.properties.text || 'Text'}</div>`;
+          break;
+        case 'input':
+          content = `<input type="text" style="${styleToCSS(style)}" value="${elementStates[element.id] || ''}" placeholder="${element.properties.text || 'Input'}" onchange="updateInput('${element.id}', this.value)">`;
+          break;
+        case 'image':
+          content = `<div style="${styleToCSS(style)}" class="image-container">
+            <img src="${elementStates[element.id] || ''}" alt="Image" style="width: 100%; height: 100%; object-fit: cover;">
+            <input type="file" accept="image/*" onchange="handleImageUpload('${element.id}', this)" style="display: none;">
+            <button onclick="document.querySelector('.image-container input[type=file]').click()">Change Image</button>
+          </div>`;
+          break;
+        case 'card':
+          content = `
+            <div style="${styleToCSS(style)}" class="card">
+              <h3 contenteditable="true" onblur="updateCardTitle('${element.id}', this.textContent)">${element.properties.text || 'Card Title'}</h3>
+              <p contenteditable="true" onblur="updateCardContent('${element.id}', this.textContent)">${elementStates[element.id] || 'Card content'}</p>
+            </div>
+          `;
+          break;
+        case 'container':
+          content = `<div style="${styleToCSS(style)}" class="container">
+            <div contenteditable="true" onblur="updateContainerContent('${element.id}', this.textContent)">${elementStates[element.id] || element.properties.text || 'Container'}</div>
+          </div>`;
+          break;
+        default:
+          content = '';
+      }
+      return content;
+    }).join('\n');
+
+    // Create the complete HTML file with all necessary scripts and styles
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DragNdrop Design</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: ${theme === 'dark' ? '#1a1a1a' : '#ffffff'};
+      color: ${theme === 'dark' ? '#ffffff' : '#000000'};
+    }
+    .canvas {
+      position: relative;
+      width: ${canvasWidth}px;
+      height: ${canvasHeight}px;
+      margin: 0 auto;
+      background-color: ${theme === 'dark' ? '#2d2d2d' : '#f5f5f5'};
+      border: 1px solid ${theme === 'dark' ? '#404040' : '#e0e0e0'};
+      overflow: hidden;
+    }
+    .image-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .image-container button {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      padding: 5px 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .card {
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .container {
+      padding: 20px;
+      border: 2px dashed ${theme === 'dark' ? '#404040' : '#e0e0e0'};
+      border-radius: 8px;
+    }
+    [contenteditable="true"] {
+      outline: none;
+    }
+    [contenteditable="true"]:focus {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    ${canvasContent}
+  </div>
+
+  <script>
+    // Element state management
+    const elementStates = ${JSON.stringify(elementStates)};
+
+    // Update functions for different element types
+    function updateText(id, content) {
+      elementStates[id] = content;
+      console.log('Text updated:', id, content);
+    }
+
+    function updateInput(id, value) {
+      elementStates[id] = value;
+      console.log('Input updated:', id, value);
+    }
+
+    function updateCardTitle(id, title) {
+      elementStates[id] = { ...elementStates[id], title };
+      console.log('Card title updated:', id, title);
+    }
+
+    function updateCardContent(id, content) {
+      elementStates[id] = { ...elementStates[id], content };
+      console.log('Card content updated:', id, content);
+    }
+
+    function updateContainerContent(id, content) {
+      elementStates[id] = content;
+      console.log('Container content updated:', id, content);
+    }
+
+    function handleImageUpload(id, input) {
+      const file = input.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = document.querySelector(\`#\${id} img\`);
+          if (img) {
+            img.src = e.target.result;
+            elementStates[id] = e.target.result;
+            console.log('Image updated:', id);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // Save state to localStorage
+    function saveState() {
+      localStorage.setItem('dragndrop_states', JSON.stringify(elementStates));
+    }
+
+    // Load state from localStorage
+    function loadState() {
+      const savedStates = localStorage.getItem('dragndrop_states');
+      if (savedStates) {
+        Object.assign(elementStates, JSON.parse(savedStates));
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      // Add auto-save
+      setInterval(saveState, 5000);
+    });
+  </script>
+</body>
+</html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dragndrop-design-${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleShare = () => {
     const designData = {
       elements,
       elementStates,
       theme,
+      canvasWidth,
+      canvasHeight,
+      selectedElement,
+      isPreviewMode,
       timestamp: new Date().toISOString()
     };
     
@@ -437,15 +689,28 @@ function App() {
       lastModified: new Date().toLocaleString()
     };
     setProjects([...projects, newProject]);
-    // Clear the canvas for the new project
+    setCurrentProjectId(newProject.id);
+    
+    // Clear the canvas and reset states
     setElements([]);
     Object.keys(elementStates).forEach(id => setElementState(id, ''));
+    
+    // Save the cleared state with project-specific key
+    localStorage.setItem(`project_${newProject.id}`, JSON.stringify({
+      elements: [],
+      elementStates: {},
+      theme: theme,
+      canvasWidth: canvasWidth,
+      canvasHeight: canvasHeight,
+      isPreviewMode: false
+    }));
   };
 
   const handleOpenProject = (id: string) => {
     const project = projects.find(p => p.id === id);
     if (project) {
-      // Load project data from localStorage
+      setCurrentProjectId(id);
+      // Load project data from project-specific storage
       const projectData = localStorage.getItem(`project_${id}`);
       if (projectData) {
         const { elements: savedElements, elementStates: savedStates } = JSON.parse(projectData);
@@ -471,298 +736,381 @@ function App() {
     localStorage.removeItem(`project_${id}`);
   };
 
-  // Save project data when elements or states change
+  // Update the save effect to use current project ID
   useEffect(() => {
-    if (selectedElement) {
-      const projectId = selectedElement.split('_')[0];
-      localStorage.setItem(`project_${projectId}`, JSON.stringify({
+    if (currentProjectId) {
+      localStorage.setItem(`project_${currentProjectId}`, JSON.stringify({
         elements,
-        elementStates
+        elementStates,
+        theme,
+        canvasWidth,
+        canvasHeight,
+        isPreviewMode
       }));
     }
-  }, [elements, elementStates, selectedElement]);
+  }, [elements, elementStates, theme, canvasWidth, canvasHeight, isPreviewMode, currentProjectId]);
+
+  // Load initial project if exists
+  useEffect(() => {
+    const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+    if (savedProjects) {
+      const parsedProjects = JSON.parse(savedProjects);
+      if (parsedProjects.length > 0) {
+        setCurrentProjectId(parsedProjects[0].id);
+        handleOpenProject(parsedProjects[0].id);
+      }
+    }
+  }, []);
 
   return (
     <Router>
       <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-100"}`}>
         <Routes>
           <Route path="/" element={<HomePage theme={theme} />} />
-          <Route 
-            path="/projects" 
+          
+          {/* Protected Routes */}
+          <Route
+            path="/projects"
             element={
-              <LandingPage 
-                theme={theme}
-                projects={projects}
-                onNewProject={handleNewProject}
-                onOpenProject={handleOpenProject}
-                onEditProject={handleEditProject}
-                onDeleteProject={handleDeleteProject}
-              />
-            } 
+              <>
+                <SignedIn>
+                  <LandingPage 
+                    theme={theme}
+                    projects={projects}
+                    onNewProject={handleNewProject}
+                    onOpenProject={handleOpenProject}
+                    onEditProject={handleEditProject}
+                    onDeleteProject={handleDeleteProject}
+                  />
+                </SignedIn>
+                <SignedOut>
+                  <RedirectToSignIn />
+                </SignedOut>
+              </>
+            }
           />
-          <Route 
-            path="/editor" 
+          
+          <Route
+            path="/editor"
             element={
-              <div className="container mx-auto p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Layers className="w-6 h-6" />
-                    DragNdrop Labs
-                  </h1>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={togglePreviewMode}
-                      className={`p-2 rounded ${
-                        theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-200"
-                      }`}
-                      title={isPreviewMode ? "Exit Preview" : "Preview"}
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={undo}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Undo"
-                    >
-                      <Undo2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={redo}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Redo"
-                    >
-                      <Redo2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={toggleTheme}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Toggle Theme"
-                    >
-                      {theme === "light" ? (
-                        <Moon className="w-4 h-4" />
-                      ) : (
-                        <Sun className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={handleGroupSelected}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Group Elements"
-                    >
-                      <Group className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleUngroup}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Ungroup Elements"
-                    >
-                      <Ungroup className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => selectedElement && removeElement(selectedElement)}
-                      className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                      title="Delete Selected"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  {!isPreviewMode && (
-                    <div className="w-64">
-                      <div
-                        className={`rounded-lg shadow p-4 ${
-                          theme === "dark" ? "bg-gray-800" : "bg-white"
-                        }`}
-                      >
-                        <h2 className="font-semibold mb-4">Toolbox</h2>
-                        <div className="space-y-2">
-                          {toolboxItems.map((item) => (
-                            <div
-                              key={item.type}
-                              onClick={() => addElement(item.type as ElementType)}
-                              className={`flex items-center gap-2 p-3 rounded cursor-pointer
-                                ${
-                                  theme === "dark"
-                                    ? "bg-gray-700 hover:bg-gray-600"
-                                    : "bg-gray-50 hover:bg-gray-100"
-                                }`}
-                            >
-                              <item.icon className="w-4 h-4" />
-                              {item.label}
+              <>
+                <SignedIn>
+                  <div className="container mx-auto p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <Layers className="w-6 h-6" />
+                        DragNdrop Labs
+                      </h1>
+                      <div className="flex gap-2">
+                        <div className="relative group">
+                          <button
+                            onClick={() => setShowDownloadOptions(true)}
+                            className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                            title="Download Design"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          {showDownloadOptions && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg z-50">
+                              <div className="p-2">
+                                <button
+                                  onClick={() => {
+                                    handleExportJSON();
+                                    setShowDownloadOptions(false);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                >
+                                  <FileJson className="w-4 h-4" />
+                                  Download as JSON
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    handleExportHTML();
+                                    setShowDownloadOptions(false);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                                >
+                                  <FileCode className="w-4 h-4" />
+                                  Download as HTML
+                                </button>
+                              </div>
                             </div>
-                          ))}
+                          )}
                         </div>
+                        <button
+                          onClick={handleShare}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Share Design"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={togglePreviewMode}
+                          className={`p-2 rounded ${
+                            theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-200"
+                          }`}
+                          title={isPreviewMode ? "Exit Preview" : "Preview"}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={undo}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Undo"
+                        >
+                          <Undo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={redo}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Redo"
+                        >
+                          <Redo2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={toggleTheme}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Toggle Theme"
+                        >
+                          {theme === "light" ? (
+                            <Moon className="w-4 h-4" />
+                          ) : (
+                            <Sun className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={handleGroupSelected}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Group Elements"
+                        >
+                          <Group className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleUngroup}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Ungroup Elements"
+                        >
+                          <Ungroup className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => selectedElement && removeElement(selectedElement)}
+                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+                          title="Delete Selected"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                  )}
 
-                  <div
-                    className={`flex-1 relative flex justify-center items-center ${
-                      isPreviewMode ? "pt-8" : ""
-                    }`}
-                  >
-                    {isPreviewMode ? (
-                      <PhoneTypeSelector
-                        selectedType={selectedPhoneType}
-                        onSelectType={(type) => {
-                          setSelectedPhoneType(type);
-                          if (type.name !== 'Custom') {
-                            setCanvasDimensions(type.width, type.height);
-                          }
-                        }}
-                        customWidth={canvasWidth}
-                        customHeight={canvasHeight}
-                        onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
-                        onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
-                        elements={elements}
-                        elementStates={elementStates}
-                        onElementStateChange={setElementState}
-                        canvasWidth={canvasWidth}
-                        canvasHeight={canvasHeight}
-                      />
-                    ) : (
-                      <div
-                        id="canvas"
-                        className={`rounded-lg shadow p-4 relative overflow-hidden ${
-                          theme === "dark" ? "bg-gray-800" : "bg-white"
-                        }`}
-                        style={{
-                          width: `${canvasWidth}px`,
-                          height: `${canvasHeight}px`,
-                        }}
-                        onClick={handleCanvasClick}
-                      >
-                        <CanvasGuides
-                          width={canvasWidth}
-                          height={canvasHeight}
-                          theme={theme}
-                          elements={elements}
-                          draggingElement={draggingElement || undefined}
-                          onSnap={handleSnap}
-                        />
-                        {elements.map((element) => (
+                    <div className="flex gap-4">
+                      <div className="w-64">
+                        <div
+                          className={`rounded-lg shadow p-4 ${
+                            theme === "dark" ? "bg-gray-800" : "bg-white"
+                          }`}
+                        >
+                          <h2 className="font-semibold mb-4">Component Tree</h2>
+                          <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+                            <ComponentTree
+                              elements={elements}
+                              selectedElement={selectedElement}
+                              onSelect={selectElement}
+                              theme={theme}
+                            />
+                          </div>
+                        </div>
+
+                        {!isPreviewMode && (
                           <div
-                            key={element.id}
-                            id={element.id}
-                            onMouseDown={(e) => handleMouseDown(e, element.id)}
-                            className={`inline-block ${
-                              !isPreviewMode && selectedElement === element.id
-                                ? "ring-2 ring-blue-500"
-                                : ""
-                            } ${draggingElement?.id === element.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                            style={{
-                              position: (element.properties.layout?.position as Position) || "absolute",
-                              left: "0",
-                              top: "0",
-                              transform: `translate(${element.properties.layout?.left || "50%"}%, ${element.properties.layout?.top || "50%"}%)`,
-                              width: "fit-content",
-                              transition: draggingElement?.id === element.id ? 'none' : 'all 0.2s ease-out',
-                              zIndex: draggingElement?.id === element.id ? 50 : 1,
-                            }}
+                            className={`rounded-lg shadow p-4 mt-4 ${
+                              theme === "dark" ? "bg-gray-800" : "bg-white"
+                            }`}
                           >
-                            <div style={{ width: element.properties.layout?.width || "auto" }}>
-                              <PreviewElement
-                                element={element}
-                                value={elementStates[element.id]}
-                                onChange={(value) => setElementState(element.id, value)}
+                            <h2 className="font-semibold mb-4">Toolbox</h2>
+                            <div className="space-y-2">
+                              {toolboxItems.map((item) => (
+                                <div
+                                  key={item.type}
+                                  onClick={() => addElement(item.type as ElementType)}
+                                  className={`flex items-center gap-2 p-3 rounded cursor-pointer
+                                    ${
+                                      theme === "dark"
+                                        ? "bg-gray-700 hover:bg-gray-600"
+                                        : "bg-gray-50 hover:bg-gray-100"
+                                    }`}
+                                >
+                                  <item.icon className="w-4 h-4" />
+                                  {item.label}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div
+                        className={`flex-1 relative flex justify-center items-center ${
+                          isPreviewMode ? "pt-8" : ""
+                        }`}
+                      >
+                        {isPreviewMode ? (
+                          <div className="fixed inset-0 bg-gray-50 flex flex-col">
+                            {/* Exit Button */}
+                            <button
+                              onClick={togglePreviewMode}
+                              className="fixed top-4 right-4 z-10 flex items-center gap-2 px-4 py-2 rounded-lg bg-white shadow-sm hover:bg-gray-100 text-gray-700 transition-all"
+                              title="Exit Preview"
+                            >
+                              <Eye className="w-4 h-4" />
+                              Exit Preview
+                            </button>
+                            
+                            {/* Preview Area */}
+                            <div className="flex-1 flex flex-col items-center">
+                              <PhoneTypeSelector
+                                selectedType={selectedPhoneType}
+                                onSelectType={(type) => {
+                                  setSelectedPhoneType(type);
+                                  if (type.name !== 'Custom') {
+                                    setCanvasDimensions(type.width, type.height);
+                                  }
+                                }}
+                                customWidth={canvasWidth}
+                                customHeight={canvasHeight}
+                                onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
+                                onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
+                                elements={elements}
+                                elementStates={elementStates}
+                                onElementStateChange={setElementState}
+                                canvasWidth={canvasWidth}
+                                canvasHeight={canvasHeight}
                               />
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {!isPreviewMode && (
-                    <div className="w-80 flex flex-col gap-4">
-                      <div className="flex flex-col gap-2">
-                        <button
-                          onClick={() => setActiveTab('elements')}
-                          className={`p-2 rounded flex items-center gap-2 ${
-                            activeTab === 'elements'
-                              ? theme === 'dark'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : theme === 'dark'
-                              ? 'hover:bg-gray-700'
-                              : 'hover:bg-gray-200'
-                          }`}
-                        >
-                          <Layers className="w-4 h-4" />
-                          Elements
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('style')}
-                          className={`p-2 rounded flex items-center gap-2 ${
-                            activeTab === 'style'
-                              ? theme === 'dark'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : theme === 'dark'
-                              ? 'hover:bg-gray-700'
-                              : 'hover:bg-gray-200'
-                          }`}
-                        >
-                          <Palette className="w-4 h-4" />
-                          Style
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('data')}
-                          className={`p-2 rounded flex items-center gap-2 ${
-                            activeTab === 'data'
-                              ? theme === 'dark'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-blue-500 text-white'
-                              : theme === 'dark'
-                              ? 'hover:bg-gray-700'
-                              : 'hover:bg-gray-200'
-                          }`}
-                        >
-                          <Table2 className="w-4 h-4" />
-                          Data
-                        </button>
-                      </div>
-
-                      <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
-                        theme === "dark" ? "bg-gray-800" : "bg-white"
-                      }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
-                        {activeTab === 'elements' && (
-                          <ComponentTree
-                            elements={elements}
-                            selectedElement={selectedElement}
-                            onSelect={selectElement}
-                            theme={theme}
-                          />
-                        )}
-                        {activeTab === 'style' && selectedElement && (
-                          <StyleEditor
-                            elementId={selectedElement}
-                            onUpdate={handleUpdateElement}
-                            theme={theme}
-                            onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
-                          />
-                        )}
-                        {activeTab === 'data' && (
-                          <DataTab
-                            elements={elements}
-                            onUpdateElementData={handleUpdateElement}
-                            theme={theme}
-                          />
-                        )}
-                        {activeTab === 'style' && !selectedElement && (
-                          <div className="text-center text-gray-500">
-                            Select an element to edit its style
+                        ) : (
+                          <div
+                            id="canvas"
+                            className={`rounded-lg shadow p-4 relative overflow-hidden ${
+                              theme === "dark" ? "bg-gray-800" : "bg-white"
+                            }`}
+                            style={{
+                              width: `${canvasWidth}px`,
+                              height: `${canvasHeight}px`,
+                            }}
+                            onClick={handleCanvasClick}
+                          >
+                            <CanvasGuides
+                              width={canvasWidth}
+                              height={canvasHeight}
+                              theme={theme}
+                              elements={elements}
+                              draggingElement={draggingElement || undefined}
+                              onSnap={handleSnap}
+                            />
+                            {elements.map((element) => (
+                              <div
+                                key={element.id}
+                                id={element.id}
+                                onMouseDown={(e) => handleMouseDown(e, element.id)}
+                                className={`inline-block ${
+                                  !isPreviewMode && selectedElement === element.id
+                                    ? "ring-2 ring-blue-500"
+                                    : ""
+                                } ${draggingElement?.id === element.id ? 'cursor-grabbing' : 'cursor-grab'}`}
+                                style={{
+                                  position: (element.properties.layout?.position as Position) || "absolute",
+                                  left: "0",
+                                  top: "0",
+                                  transform: element.properties.layout?.transform || `translate(${element.properties.layout?.left || "50%"}, ${element.properties.layout?.top || "50%"})`,
+                                  width: element.properties.layout?.width || "fit-content",
+                                  height: element.properties.layout?.height || "auto",
+                                  transition: draggingElement?.id === element.id ? 'none' : 'all 0.2s ease-out',
+                                  zIndex: draggingElement?.id === element.id ? 50 : 1,
+                                }}
+                              >
+                                <div style={{ width: element.properties.layout?.width || "auto" }}>
+                                  <PreviewElement
+                                    element={element}
+                                    value={elementStates[element.id]}
+                                    onChange={(value) => setElementState(element.id, value)}
+                                    isPreviewMode={isPreviewMode}
+                                  />
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
+
+                      <div className="w-80 flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => setActiveTab('style')}
+                            className={`p-2 rounded flex items-center gap-2 ${
+                              activeTab === 'style'
+                                ? theme === 'dark'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-500 text-white'
+                                : theme === 'dark'
+                                ? 'hover:bg-gray-700'
+                                : 'hover:bg-gray-200'
+                            }`}
+                          >
+                            <Palette className="w-4 h-4" />
+                            Style
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('data')}
+                            className={`p-2 rounded flex items-center gap-2 ${
+                              activeTab === 'data'
+                                ? theme === 'dark'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-500 text-white'
+                                : theme === 'dark'
+                                ? 'hover:bg-gray-700'
+                                : 'hover:bg-gray-200'
+                            }`}
+                          >
+                            <Table2 className="w-4 h-4" />
+                            Data
+                          </button>
+                        </div>
+
+                        <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
+                          theme === "dark" ? "bg-gray-800" : "bg-white"
+                        }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
+                          {activeTab === 'style' && selectedElement && (
+                            <StyleEditor
+                              elementId={selectedElement}
+                              onUpdate={handleUpdateElement}
+                              theme={theme}
+                              onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
+                            />
+                          )}
+                          {activeTab === 'data' && (
+                            <DataTab
+                              elements={elements}
+                              onUpdateElementData={handleUpdateElement}
+                              theme={theme}
+                            />
+                          )}
+                          {activeTab === 'style' && !selectedElement && (
+                            <div className="text-center text-gray-500">
+                              Select an element to edit its style
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
-            } 
+                  </div>
+                </SignedIn>
+                <SignedOut>
+                  <RedirectToSignIn />
+                </SignedOut>
+              </>
+            }
           />
+          
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
@@ -774,10 +1122,12 @@ function PreviewElement({
   element,
   value,
   onChange,
+  isPreviewMode,
 }: {
   element: any;
   value?: string;
   onChange: (value: string) => void;
+  isPreviewMode: boolean;
 }) {
   const style = {
     backgroundColor: element.properties.style?.backgroundColor,
@@ -805,38 +1155,45 @@ function PreviewElement({
       return (
         <button
           onClick={() => {
-            try {
-              // eslint-disable-next-line no-eval
-              eval(element.properties.onClick || "");
-            } catch (error) {
-              console.error("Error executing button action:", error);
+            if (isPreviewMode && element.properties.href) {
+              window.open(element.properties.href, '_blank');
             }
           }}
+          type={element.properties.type || 'button'}
+          disabled={element.properties.disabled || false}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          style={style}
+          style={{
+            ...style,
+            cursor: isPreviewMode && element.properties.href ? 'pointer' : undefined
+          }}
+          title={isPreviewMode && element.properties.href ? element.properties.href : undefined}
         >
-          {element.properties.text}
+          {value || element.properties.text}
+          {isPreviewMode && element.properties.href && (
+            <span className="ml-1 text-xs opacity-70">↗</span>
+          )}
         </button>
       );
     case "text":
       return (
         <div
-          contentEditable
+          contentEditable={!isPreviewMode}
           suppressContentEditableWarning
-          onBlur={(e) => onChange(e.currentTarget.textContent || "")}
+          onBlur={(e) => !isPreviewMode && onChange(e.currentTarget.textContent || "")}
           style={style}
-          className="outline-none"
+          className="outline-none min-w-[50px] min-h-[24px]"
         >
-          {element.properties.text}
+          {value || element.properties.text}
         </div>
       );
     case "input":
       return (
         <input
           type="text"
-          value={value || ""}
+          value={value !== undefined ? value : ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={element.properties.text}
+          readOnly={isPreviewMode}
           className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           style={style}
         />

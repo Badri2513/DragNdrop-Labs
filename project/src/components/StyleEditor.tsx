@@ -11,6 +11,7 @@ interface StyleEditorProps {
 interface ElementProperties {
   text?: string;
   onClick?: string;
+  href?: string;
   value?: string;
   style?: {
     backgroundColor?: string;
@@ -115,13 +116,37 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
   };
 
   const handleLinkChange = (value: string) => {
-    handleUpdate('onClick', `window.location.href = '${value || '#'}'`);
+    handleUpdate('href', value);
   };
 
   return (
     <div className={`p-4 min-w-[320px] ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}>
       <div className="space-y-4">
         <h3 className="font-semibold">Style Properties</h3>
+        {['button', 'text', 'input'].includes(element.type) && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Text</label>
+            <input
+              type="text"
+              value={element.properties.text || ''}
+              onChange={(e) => handleTextChange(e.target.value)}
+              className="block w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        )}
+        {element.type === 'button' && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">URL Link</label>
+            <input
+              type="url"
+              value={element.properties.href || ''}
+              onChange={(e) => handleLinkChange(e.target.value)}
+              placeholder="https://example.com"
+              className="block w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">Enter URL to make button a link</p>
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium mb-1">Background Color</label>
           <input
