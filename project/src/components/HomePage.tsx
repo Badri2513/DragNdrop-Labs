@@ -5,14 +5,13 @@ import { ArrowRight, Flame, Zap, Share2 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 
 interface HomePageProps {
-  onGetStarted: () => void
+  theme: 'light' | 'dark'
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onGetStarted }) => {
+const HomePage: React.FC<HomePageProps> = ({ theme }) => {
   const navigate = useNavigate();
 
   const handleGetStarted = () => {
-    onGetStarted();
     navigate('/projects');
   };
 
@@ -92,23 +91,13 @@ const HomePage: React.FC<HomePageProps> = ({ onGetStarted }) => {
           <p className="text-zinc-500 text-sm">DESIGN WITHOUT COMPROMISE</p>
           <p className="text-zinc-500 text-sm">Made with ❤️ by <a href="https://github.com/Badri2513/DragNdrop-Labs" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-600">Team Mustang</a></p>
           <p className="text-zinc-500 text-sm">
-
             <ul>
-              <li>
-               Saif M.S.
-              </li>
-              <li>
-                Badrinath.M
-              </li>
-              <li>
-                Lakshwin 
-              </li>
-              <li>
-                HarrisRaj.B
-              </li>
+              <li>Saif M.S.</li>
+              <li>Badrinath.M</li>
+              <li>Lakshwin</li>
+              <li>HarrisRaj.B</li>
             </ul>
           </p>
-          
         </div>
       </div>
     </div>

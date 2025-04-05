@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
+import { useState } from "react"
 import { Plus, Music, Trash2, Disc, Guitar, Mic, Edit2 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
-import { useState } from "react"
 
 // Define the Project interface
 interface Project {
@@ -20,15 +20,17 @@ interface LandingPageProps {
   onDeleteProject: (id: string) => void
   onEditProject: (id: string, newName: string) => void
   projects: Project[]
+  theme: 'light' | 'dark'
 }
 
 // Main component implementation
 const LandingPage: React.FC<LandingPageProps> = ({
-  projects,
   onNewProject,
   onOpenProject,
   onDeleteProject,
-  onEditProject
+  onEditProject,
+  projects,
+  theme
 }) => {
   const navigate = useNavigate();
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -144,40 +146,40 @@ const LandingPage: React.FC<LandingPageProps> = ({
             </button>
           </div>
         )}
-      </div>
 
-      {/* Edit Project Modal */}
-      {editingProject && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-zinc-800 p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h2 className="text-2xl font-bold text-white mb-4">Edit Project Name</h2>
-            <input
-              type="text"
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              className="w-full px-4 py-2 bg-zinc-700 text-white rounded-none mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
-              placeholder="Enter new project name"
-            />
-            <div className="flex justify-end gap-4">
-              <button
-                onClick={() => {
-                  setEditingProject(null);
-                  setNewProjectName("");
-                }}
-                className="px-4 py-2 text-zinc-400 hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                className="px-4 py-2 bg-red-600 text-white rounded-none hover:bg-red-700 transition-colors"
-              >
-                Save Changes
-              </button>
+        {/* Edit Project Modal */}
+        {editingProject && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-zinc-800 p-6 rounded-lg shadow-xl max-w-md w-full">
+              <h2 className="text-2xl font-bold text-white mb-4">Edit Project Name</h2>
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                className="w-full px-4 py-2 bg-zinc-700 text-white rounded-none mb-4 focus:outline-none focus:ring-2 focus:ring-red-500"
+                placeholder="Enter new project name"
+              />
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={() => {
+                    setEditingProject(null);
+                    setNewProjectName("");
+                  }}
+                  className="px-4 py-2 text-zinc-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="px-4 py-2 bg-red-600 text-white rounded-none hover:bg-red-700 transition-colors"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

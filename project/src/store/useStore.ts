@@ -24,6 +24,10 @@ export interface Element {
       top?: string;
       transform?: string;
     };
+    data?: {
+      headers: string[];
+      rows: string[][];
+    };
   };
   groupId?: string;
 }
@@ -58,7 +62,24 @@ interface State {
   ungroupElements: (groupId: string) => void;
   togglePreviewMode: () => void;
   loadDesign: (designData: { elements: Element[]; elementStates: Record<string, string>; theme: 'light' | 'dark'; canvasWidth: number; canvasHeight: number }) => void;
+  setElements: (elements: any[]) => void;
+  setSelectedElement: (id: string | null) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
 }
+
+const STORAGE_KEY = 'dragndrop-design';
+
+const saveState = (state: Partial<State>) => {
+  const currentState = useStore.getState();
+  const newState = {
+    elements: state.elements || currentState.elements,
+    elementStates: state.elementStates || currentState.elementStates,
+    theme: state.theme || currentState.theme,
+    canvasWidth: state.canvasWidth || currentState.canvasWidth,
+    canvasHeight: state.canvasHeight || currentState.canvasHeight,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
+};
 
 const useStore = create<State>((set) => ({
   elements: [],
@@ -84,6 +105,7 @@ const useStore = create<State>((set) => ({
         future: [],
       },
     }));
+    saveState({ canvasWidth: width, canvasHeight: height });
   },
 
   addElement: (type, properties = {}) => {
@@ -136,6 +158,7 @@ const useStore = create<State>((set) => ({
       };
 
       const newElements = [...state.elements, newElement];
+      saveState({ elements: newElements });
       return {
         elements: newElements,
         history: {
@@ -154,6 +177,7 @@ const useStore = create<State>((set) => ({
           ? { ...el, properties: { ...el.properties, ...properties } }
           : el
       );
+      saveState({ elements: newElements });
       return {
         elements: newElements,
         history: {
@@ -168,6 +192,7 @@ const useStore = create<State>((set) => ({
   removeElement: (id) => {
     set((state) => {
       const newElements = state.elements.filter((el) => el.id !== id);
+      saveState({ elements: newElements });
       return {
         elements: newElements,
         history: {
@@ -185,19 +210,59 @@ const useStore = create<State>((set) => ({
       if (element?.type === 'container') {
         try {
           const newProperties = JSON.parse(value);
+          const newElements = state.elements.map(el => 
+            el.id === id 
+              ? { ...el, properties: { ...el.properties, ...newProperties } }
+              : el
+          );
+          saveState({ 
+            elements: newElements,
+            elementStates: { ...state.elementStates, [id]: value } 
+          });
           return {
-            elementStates: { ...state.elementStates, [id]: value },
-            elements: state.elements.map(el => 
-              el.id === id 
-                ? { ...el, properties: { ...el.properties, ...newProperties } }
-                : el
-            )
+            elements: newElements,
+            elementStates: { ...state.elementStates, [id]: value }
           };
         } catch (e) {
+          saveState({ elementStates: { ...state.elementStates, [id]: value } });
           return { elementStates: { ...state.elementStates, [id]: value } };
         }
+      } else if (element?.type === 'table') {
+        try {
+          const newData = JSON.parse(value);
+          const newElements = state.elements.map(el => 
+            el.id === id 
+              ? { ...el, properties: { ...el.properties, data: newData } }
+              : el
+          );
+          saveState({ 
+            elements: newElements,
+            elementStates: { ...state.elementStates, [id]: value } 
+          });
+          return {
+            elements: newElements,
+            elementStates: { ...state.elementStates, [id]: value }
+          };
+        } catch (e) {
+          saveState({ elementStates: { ...state.elementStates, [id]: value } });
+          return { elementStates: { ...state.elementStates, [id]: value } };
+        }
+      } else {
+        // For other element types, update the properties directly
+        const newElements = state.elements.map(el => 
+          el.id === id 
+            ? { ...el, properties: { ...el.properties, ...JSON.parse(value) } }
+            : el
+        );
+        saveState({ 
+          elements: newElements,
+          elementStates: { ...state.elementStates, [id]: value } 
+        });
+        return {
+          elements: newElements,
+          elementStates: { ...state.elementStates, [id]: value }
+        };
       }
-      return { elementStates: { ...state.elementStates, [id]: value } };
     });
   },
 
@@ -206,6 +271,7 @@ const useStore = create<State>((set) => ({
       const newElements = Array.from(state.elements);
       const [removed] = newElements.splice(sourceIndex, 1);
       newElements.splice(destinationIndex, 0, removed);
+      saveState({ elements: newElements });
       return {
         elements: newElements,
         history: {
@@ -234,6 +300,7 @@ const useStore = create<State>((set) => ({
             }
           : el
       );
+      saveState({ elements: newElements });
       return {
         elements: newElements,
         history: {
@@ -250,6 +317,7 @@ const useStore = create<State>((set) => ({
       if (state.history.past.length === 0) return state;
       const previous = state.history.past[state.history.past.length - 1];
       const newPast = state.history.past.slice(0, -1);
+      saveState({ elements: previous });
       return {
         elements: previous,
         history: {
@@ -266,6 +334,7 @@ const useStore = create<State>((set) => ({
       if (state.history.future.length === 0) return state;
       const next = state.history.future[0];
       const newFuture = state.history.future.slice(1);
+      saveState({ elements: next });
       return {
         elements: next,
         history: {
@@ -282,7 +351,11 @@ const useStore = create<State>((set) => ({
   },
 
   toggleTheme: () => {
-    set((state) => ({ theme: state.theme === 'light' ? 'dark' : 'light' }));
+    set((state) => {
+      const newTheme = state.theme === 'light' ? 'dark' : 'light';
+      saveState({ theme: newTheme });
+      return { theme: newTheme };
+    });
   },
 
   groupElements: (elementIds) => {
@@ -291,6 +364,7 @@ const useStore = create<State>((set) => ({
       const newElements = state.elements.map((el) =>
         elementIds.includes(el.id) ? { ...el, groupId } : el
       );
+      saveState({ elements: newElements });
       return {
         elements: newElements,
         history: {
@@ -307,6 +381,7 @@ const useStore = create<State>((set) => ({
       const newElements = state.elements.map((el) =>
         el.groupId === groupId ? { ...el, groupId: undefined } : el
       );
+      saveState({ elements: newElements });
       return {
         elements: newElements,
         history: {
@@ -319,7 +394,11 @@ const useStore = create<State>((set) => ({
   },
 
   togglePreviewMode: () => {
-    set((state) => ({ isPreviewMode: !state.isPreviewMode }));
+    set((state) => {
+      const newPreviewMode = !state.isPreviewMode;
+      saveState({ isPreviewMode: newPreviewMode });
+      return { isPreviewMode: newPreviewMode };
+    });
   },
 
   loadDesign: (designData) => {
@@ -336,7 +415,33 @@ const useStore = create<State>((set) => ({
       },
       selectedElement: null,
     });
+    saveState({ elements: designData.elements, elementStates: designData.elementStates, theme: designData.theme, canvasWidth: designData.canvasWidth || 800, canvasHeight: designData.canvasHeight || 600 });
+  },
+
+  setElements: (elements) => {
+    set({ elements });
+    saveState({ elements });
+  },
+
+  setSelectedElement: (id) => {
+    set({ selectedElement: id });
+  },
+
+  setTheme: (theme) => {
+    set({ theme });
+    saveState({ theme });
   },
 }));
+
+// Load saved state from local storage on initialization
+const savedState = localStorage.getItem(STORAGE_KEY);
+if (savedState) {
+  try {
+    const parsedState = JSON.parse(savedState);
+    useStore.getState().loadDesign(parsedState);
+  } catch (error) {
+    console.error('Error loading saved state:', error);
+  }
+}
 
 export default useStore;
