@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { Smartphone } from 'lucide-react';
+import { Element } from '../store/useStore';
+import PreviewElement from '../App';
+
+type Position = "absolute" | "relative" | "fixed" | "static" | "sticky";
 
 interface PhoneType {
   name: string;
@@ -10,37 +14,16 @@ interface PhoneType {
   dynamicIsland: boolean;
 }
 
-interface Element {
-  id: string;
-  type: string;
-  properties: {
-    layout?: {
-      left?: string;
-      top?: string;
-      width?: string;
-      height?: string;
-      position?: string;
-      transform?: string;
-      alignment?: string;
-    };
-    style?: {
-      backgroundColor?: string;
-      color?: string;
-      padding?: string;
-      borderRadius?: string;
-      fontSize?: string;
-    };
-    text?: string;
-    data?: {
-      headers: string[];
-      rows: string[][];
-    };
-  };
-}
-
 interface PhoneTypeSelectorProps {
-  selectedType: PhoneType;
-  onSelectType: (type: PhoneType) => void;
+  selectedType: {
+    name: string;
+    width: number;
+    height: number;
+    brand: string;
+    notch: boolean;
+    dynamicIsland: boolean;
+  };
+  onSelectType: (type: any) => void;
   customWidth: number;
   customHeight: number;
   onCustomWidthChange: (width: number) => void;
@@ -100,7 +83,7 @@ const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
       transform: layout.transform,
       textAlign: layout.alignment as 'left' | 'center' | 'right' | undefined,
       backgroundColor: style.backgroundColor,
-      color: style.color,
+      color: style.textColor,
       padding: style.padding,
       borderRadius: style.borderRadius,
       fontSize: style.fontSize,
@@ -110,11 +93,23 @@ const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
       case 'button':
         return (
           <button
-            key={element.id}
-            style={elementStyle}
-            className="px-4 py-2 rounded hover:bg-blue-600"
+            onClick={() => {
+              if (element.properties.href) {
+                window.open(element.properties.href, '_blank');
+              }
+            }}
+            type={element.properties.type as 'button' | 'submit' | 'reset' || 'button'}
+            disabled={element.properties.disabled || false}
+            style={{
+              ...style,
+              backgroundColor: element.properties.style?.backgroundColor,
+              color: element.properties.style?.textColor,
+              padding: element.properties.style?.padding,
+              borderRadius: element.properties.style?.borderRadius,
+              fontSize: element.properties.style?.fontSize,
+            }}
           >
-            {element.properties.text}
+            {elementStates[element.id] || element.properties.text || 'Button'}
           </button>
         );
       case 'text':
@@ -270,7 +265,78 @@ const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
                   backgroundColor: '#f8f9fa',
                 }}
               >
-                {elements.map((element) => renderElement(element))}
+                {elements.map((element) => (
+                  <div
+                    key={element.id}
+                    id={element.id}
+                    className="inline-block"
+                    style={{
+                      position: (element.properties.layout?.position as Position) || "absolute",
+                      left: "0",
+                      top: "0",
+                      transform: element.properties.layout?.transform || `translate(${element.properties.layout?.left || "50%"}, ${element.properties.layout?.top || "50%"})`,
+                      width: element.properties.layout?.width || "fit-content",
+                      height: element.properties.layout?.height || "auto",
+                      transition: 'all 0.2s ease-out',
+                      backgroundColor: element.properties.style?.backgroundColor,
+                      color: element.properties.style?.textColor,
+                      padding: element.properties.style?.padding,
+                      borderRadius: element.properties.style?.borderRadius,
+                      fontSize: element.properties.style?.fontSize,
+                    }}
+                  >
+                    <div style={{ width: element.properties.layout?.width || "auto" }}>
+                      {element.type === 'button' && (
+                        <button
+                          onClick={() => {
+                            if (element.properties.href) {
+                              window.open(element.properties.href, '_blank');
+                            }
+                          }}
+                          type={(element.properties.type as 'button' | 'submit' | 'reset') || 'button'}
+                          disabled={element.properties.disabled || false}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: element.properties.disabled ? 'not-allowed' : 'pointer',
+                            opacity: element.properties.disabled ? 0.5 : 1,
+                          }}
+                        >
+                          {elementStates[element.id] || element.properties.text || 'Button'}
+                        </button>
+                      )}
+                      {element.type === 'text' && (
+                        <div
+                          style={{
+                            color: element.properties.style?.textColor,
+                            padding: element.properties.style?.padding,
+                            fontSize: element.properties.style?.fontSize,
+                          }}
+                        >
+                          {elementStates[element.id] || element.properties.text}
+                        </div>
+                      )}
+                      {element.type === 'input' && (
+                        <input
+                          type="text"
+                          value={elementStates[element.id] || ''}
+                          onChange={(e) => onElementStateChange(element.id, e.target.value)}
+                          placeholder={element.properties.text}
+                          style={{
+                            backgroundColor: element.properties.style?.backgroundColor,
+                            color: element.properties.style?.textColor,
+                            padding: element.properties.style?.padding,
+                            borderRadius: element.properties.style?.borderRadius,
+                            fontSize: element.properties.style?.fontSize,
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -293,67 +359,175 @@ const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center p-4">
-      <div className="w-full max-w-4xl mb-4">
-        <div className="flex items-center gap-4">
-          <select
-            value={selectedBrand}
-            onChange={(e) => setSelectedBrand(e.target.value)}
-            className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+    <div className="flex flex-col items-center">
+      <div className="flex gap-4 mb-4">
+        {phoneTypes.map((type) => (
+          <button
+            key={type.name}
+            onClick={() => onSelectType(type)}
+            className={`p-2 rounded ${
+              selectedType.name === type.name
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-200 dark:bg-gray-700'
+            }`}
           >
-            <option value="all">All Brands</option>
-            <option value="apple">Apple</option>
-            <option value="samsung">Samsung</option>
-            <option value="google">Google</option>
-          </select>
-          
-          <select
-            value={selectedType.name}
-            onChange={(e) => {
-              const type = phoneTypes.find(t => t.name === e.target.value);
-              if (type) onSelectType(type);
-            }}
-            className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {filteredPhones.map((type) => (
-              <option key={type.name} value={type.name}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            {type.name}
+          </button>
+        ))}
       </div>
 
-      <div className="w-full max-w-4xl flex justify-center">
-        {renderPhoneFrame(selectedType)}
-      </div>
-      
       {selectedType.name === 'Custom' && (
-        <div className="mt-4 space-y-4 w-full max-w-md">
+        <div className="flex gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Custom Width (px)</label>
+            <label className="block text-sm font-medium mb-1">Width</label>
             <input
               type="number"
               value={customWidth}
               onChange={(e) => onCustomWidthChange(Number(e.target.value))}
-              min="100"
-              max="2000"
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-24 p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Custom Height (px)</label>
+            <label className="block text-sm font-medium mb-1">Height</label>
             <input
               type="number"
               value={customHeight}
               onChange={(e) => onCustomHeightChange(Number(e.target.value))}
-              min="100"
-              max="2000"
-              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-24 p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
             />
           </div>
         </div>
       )}
+
+      <div
+        className="relative border-4 border-gray-800 dark:border-gray-200 rounded-[40px] overflow-hidden bg-white dark:bg-gray-900"
+        style={{
+          width: selectedType.width,
+          height: selectedType.height,
+          padding: selectedType.notch ? '40px 0' : '0',
+        }}
+      >
+        {/* Notch */}
+        {selectedType.notch && (
+          <div className="absolute top-0 left-0 w-full h-10 flex justify-center items-center">
+            <div className="w-32 h-6 bg-gray-800 dark:bg-gray-200 rounded-t-full" />
+          </div>
+        )}
+
+        {/* Dynamic Island */}
+        {selectedType.dynamicIsland && (
+          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-32 h-8 bg-gray-800 dark:bg-gray-200 rounded-full" />
+        )}
+
+        {/* Screen Content */}
+        <div
+          className="w-full h-full overflow-auto"
+          style={{
+            padding: selectedType.notch ? '0 20px' : '20px',
+          }}
+        >
+          {elements.map((element) => (
+            <div
+              key={element.id}
+              style={{
+                position: 'absolute',
+                left: element.properties.layout?.left || '50%',
+                top: element.properties.layout?.top || '50%',
+                transform: `translate(${element.properties.layout?.left ? '0' : '-50%'}, ${
+                  element.properties.layout?.top ? '0' : '-50%'
+                })`,
+                width: element.properties.layout?.width || 'auto',
+                height: element.properties.layout?.height || 'auto',
+                backgroundColor: element.properties.style?.backgroundColor,
+                color: element.properties.style?.textColor,
+                padding: element.properties.style?.padding,
+                borderRadius: element.properties.style?.borderRadius,
+                fontSize: element.properties.style?.fontSize,
+                zIndex: 1,
+              }}
+            >
+              {element.type === 'button' && (
+                <button
+                  onClick={() => {
+                    if (element.properties.href) {
+                      window.open(element.properties.href, '_blank');
+                    }
+                  }}
+                  type={(element.properties.type as 'button' | 'submit' | 'reset') || 'button'}
+                  disabled={element.properties.disabled || false}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: element.properties.disabled ? 'not-allowed' : 'pointer',
+                    opacity: element.properties.disabled ? 0.5 : 1,
+                  }}
+                >
+                  {elementStates[element.id] || element.properties.text || 'Button'}
+                </button>
+              )}
+              {element.type === 'text' && (
+                <div>{elementStates[element.id] || element.properties.text || 'Text'}</div>
+              )}
+              {element.type === 'input' && (
+                <input
+                  type="text"
+                  value={elementStates[element.id] || ''}
+                  onChange={(e) => onElementStateChange(element.id, e.target.value)}
+                  placeholder={element.properties.text || 'Input'}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '8px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                  }}
+                />
+              )}
+              {element.type === 'image' && (
+                <img
+                  src={elementStates[element.id] || ''}
+                  alt="Image"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
+              {element.type === 'card' && (
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '16px',
+                    border: '1px solid #ccc',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <h3>{element.properties.text || 'Card Title'}</h3>
+                  <p>{elementStates[element.id] || 'Card content'}</p>
+                </div>
+              )}
+              {element.type === 'container' && (
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    padding: '16px',
+                    border: '2px dashed #ccc',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {elementStates[element.id] || element.properties.text || 'Container'}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

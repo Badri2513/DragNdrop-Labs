@@ -96,6 +96,7 @@ function App() {
     return savedProjects ? JSON.parse(savedProjects) : [];
   });
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   // Load saved data from localStorage on initial render
   useEffect(() => {
@@ -336,7 +337,16 @@ function App() {
 
   const handleExportJSON = () => {
     const designData = {
-      elements,
+      elements: elements.map(element => ({
+        ...element,
+        properties: {
+          ...element.properties,
+          // Ensure button properties are included
+          href: element.properties.href,
+          type: element.properties.type,
+          disabled: element.properties.disabled,
+        }
+      })),
       elementStates,
       theme,
       canvasWidth,
@@ -402,7 +412,12 @@ function App() {
       let content = '';
       switch (element.type) {
         case 'button':
-          content = `<button style="${styleToCSS(style)}" onclick="handleButtonClick('${element.id}')">${elementStates[element.id] || element.properties.text || 'Button'}</button>`;
+          content = `<button 
+            style="${styleToCSS(style)}" 
+            onclick="window.open('${element.properties.href || ''}', '_blank')"
+            type="${element.properties.type || 'button'}"
+            ${element.properties.disabled ? 'disabled' : ''}
+          >${elementStates[element.id] || element.properties.text || 'Button'}</button>`;
           break;
         case 'text':
           content = `<div style="${styleToCSS(style)}" contenteditable="true" onblur="updateText('${element.id}', this.textContent)">${elementStates[element.id] || element.properties.text || 'Text'}</div>`;
@@ -529,11 +544,6 @@ function App() {
     function updateContainerContent(id, content) {
       elementStates[id] = content;
       console.log('Container content updated:', id, content);
-    }
-
-    function handleButtonClick(id) {
-      console.log('Button clicked:', id);
-      // Add custom button click handling here
     }
 
     function handleImageUpload(id, input) {
@@ -678,15 +688,28 @@ function App() {
       lastModified: new Date().toLocaleString()
     };
     setProjects([...projects, newProject]);
-    // Clear the canvas for the new project
+    setCurrentProjectId(newProject.id);
+    
+    // Clear the canvas and reset states
     setElements([]);
     Object.keys(elementStates).forEach(id => setElementState(id, ''));
+    
+    // Save the cleared state with project-specific key
+    localStorage.setItem(`project_${newProject.id}`, JSON.stringify({
+      elements: [],
+      elementStates: {},
+      theme: theme,
+      canvasWidth: canvasWidth,
+      canvasHeight: canvasHeight,
+      isPreviewMode: false
+    }));
   };
 
   const handleOpenProject = (id: string) => {
     const project = projects.find(p => p.id === id);
     if (project) {
-      // Load project data from localStorage
+      setCurrentProjectId(id);
+      // Load project data from project-specific storage
       const projectData = localStorage.getItem(`project_${id}`);
       if (projectData) {
         const { elements: savedElements, elementStates: savedStates } = JSON.parse(projectData);
@@ -712,16 +735,31 @@ function App() {
     localStorage.removeItem(`project_${id}`);
   };
 
-  // Save project data when elements or states change
+  // Update the save effect to use current project ID
   useEffect(() => {
-    if (selectedElement) {
-      const projectId = selectedElement.split('_')[0];
-      localStorage.setItem(`project_${projectId}`, JSON.stringify({
+    if (currentProjectId) {
+      localStorage.setItem(`project_${currentProjectId}`, JSON.stringify({
         elements,
-        elementStates
+        elementStates,
+        theme,
+        canvasWidth,
+        canvasHeight,
+        isPreviewMode
       }));
     }
-  }, [elements, elementStates, selectedElement]);
+  }, [elements, elementStates, theme, canvasWidth, canvasHeight, isPreviewMode, currentProjectId]);
+
+  // Load initial project if exists
+  useEffect(() => {
+    const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+    if (savedProjects) {
+      const parsedProjects = JSON.parse(savedProjects);
+      if (parsedProjects.length > 0) {
+        setCurrentProjectId(parsedProjects[0].id);
+        handleOpenProject(parsedProjects[0].id);
+      }
+    }
+  }, []);
 
   return (
     <Router>
@@ -864,10 +902,26 @@ function App() {
                     </div>
 
                     <div className="flex gap-4">
-                      {!isPreviewMode && (
-                        <div className="w-64">
+                      <div className="w-64">
+                        <div
+                          className={`rounded-lg shadow p-4 ${
+                            theme === "dark" ? "bg-gray-800" : "bg-white"
+                          }`}
+                        >
+                          <h2 className="font-semibold mb-4">Component Tree</h2>
+                          <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+                            <ComponentTree
+                              elements={elements}
+                              selectedElement={selectedElement}
+                              onSelect={selectElement}
+                              theme={theme}
+                            />
+                          </div>
+                        </div>
+
+                        {!isPreviewMode && (
                           <div
-                            className={`rounded-lg shadow p-4 ${
+                            className={`rounded-lg shadow p-4 mt-4 ${
                               theme === "dark" ? "bg-gray-800" : "bg-white"
                             }`}
                           >
@@ -890,8 +944,8 @@ function App() {
                               ))}
                             </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       <div
                         className={`flex-1 relative flex justify-center items-center ${
@@ -951,8 +1005,9 @@ function App() {
                                   position: (element.properties.layout?.position as Position) || "absolute",
                                   left: "0",
                                   top: "0",
-                                  transform: `translate(${element.properties.layout?.left || "50%"}%, ${element.properties.layout?.top || "50%"}%)`,
-                                  width: "fit-content",
+                                  transform: element.properties.layout?.transform || `translate(${element.properties.layout?.left || "50%"}, ${element.properties.layout?.top || "50%"})`,
+                                  width: element.properties.layout?.width || "fit-content",
+                                  height: element.properties.layout?.height || "auto",
                                   transition: draggingElement?.id === element.id ? 'none' : 'all 0.2s ease-out',
                                   zIndex: draggingElement?.id === element.id ? 50 : 1,
                                 }}
@@ -962,6 +1017,7 @@ function App() {
                                     element={element}
                                     value={elementStates[element.id]}
                                     onChange={(value) => setElementState(element.id, value)}
+                                    isPreviewMode={isPreviewMode}
                                   />
                                 </div>
                               </div>
@@ -970,90 +1026,65 @@ function App() {
                         )}
                       </div>
 
-                      {!isPreviewMode && (
-                        <div className="w-80 flex flex-col gap-4">
-                          <div className="flex flex-col gap-2">
-                            <button
-                              onClick={() => setActiveTab('elements')}
-                              className={`p-2 rounded flex items-center gap-2 ${
-                                activeTab === 'elements'
-                                  ? theme === 'dark'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-blue-500 text-white'
-                                  : theme === 'dark'
-                                  ? 'hover:bg-gray-700'
-                                  : 'hover:bg-gray-200'
-                              }`}
-                            >
-                              <Layers className="w-4 h-4" />
-                              Elements
-                            </button>
-                            <button
-                              onClick={() => setActiveTab('style')}
-                              className={`p-2 rounded flex items-center gap-2 ${
-                                activeTab === 'style'
-                                  ? theme === 'dark'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-blue-500 text-white'
-                                  : theme === 'dark'
-                                  ? 'hover:bg-gray-700'
-                                  : 'hover:bg-gray-200'
-                              }`}
-                            >
-                              <Palette className="w-4 h-4" />
-                              Style
-                            </button>
-                            <button
-                              onClick={() => setActiveTab('data')}
-                              className={`p-2 rounded flex items-center gap-2 ${
-                                activeTab === 'data'
-                                  ? theme === 'dark'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-blue-500 text-white'
-                                  : theme === 'dark'
-                                  ? 'hover:bg-gray-700'
-                                  : 'hover:bg-gray-200'
-                              }`}
-                            >
-                              <Table2 className="w-4 h-4" />
-                              Data
-                            </button>
-                          </div>
-
-                          <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
-                            theme === "dark" ? "bg-gray-800" : "bg-white"
-                          }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
-                            {activeTab === 'elements' && (
-                              <ComponentTree
-                                elements={elements}
-                                selectedElement={selectedElement}
-                                onSelect={selectElement}
-                                theme={theme}
-                              />
-                            )}
-                            {activeTab === 'style' && selectedElement && (
-                              <StyleEditor
-                                elementId={selectedElement}
-                                onUpdate={handleUpdateElement}
-                                theme={theme}
-                                onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
-                              />
-                            )}
-                            {activeTab === 'data' && (
-                              <DataTab
-                                elements={elements}
-                                onUpdateElementData={handleUpdateElement}
-                                theme={theme}
-                              />
-                            )}
-                            {activeTab === 'style' && !selectedElement && (
-                              <div className="text-center text-gray-500">
-                                Select an element to edit its style
-                              </div>
-                            )}
-                          </div>
+                      <div className="w-80 flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => setActiveTab('style')}
+                            className={`p-2 rounded flex items-center gap-2 ${
+                              activeTab === 'style'
+                                ? theme === 'dark'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-500 text-white'
+                                : theme === 'dark'
+                                ? 'hover:bg-gray-700'
+                                : 'hover:bg-gray-200'
+                            }`}
+                          >
+                            <Palette className="w-4 h-4" />
+                            Style
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('data')}
+                            className={`p-2 rounded flex items-center gap-2 ${
+                              activeTab === 'data'
+                                ? theme === 'dark'
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-blue-500 text-white'
+                                : theme === 'dark'
+                                ? 'hover:bg-gray-700'
+                                : 'hover:bg-gray-200'
+                            }`}
+                          >
+                            <Table2 className="w-4 h-4" />
+                            Data
+                          </button>
                         </div>
-                      )}
+
+                        <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
+                          theme === "dark" ? "bg-gray-800" : "bg-white"
+                        }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
+                          {activeTab === 'style' && selectedElement && (
+                            <StyleEditor
+                              elementId={selectedElement}
+                              onUpdate={handleUpdateElement}
+                              theme={theme}
+                              onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
+                            />
+                          )}
+                          {activeTab === 'data' && (
+                            <DataTab
+                              elements={elements}
+                              onUpdateElementData={handleUpdateElement}
+                              theme={theme}
+                            />
+                          )}
+                          {activeTab === 'style' && !selectedElement && (
+                            <div className="text-center text-gray-500">
+                              Select an element to edit its style
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </SignedIn>
@@ -1075,10 +1106,12 @@ function PreviewElement({
   element,
   value,
   onChange,
+  isPreviewMode,
 }: {
   element: any;
   value?: string;
   onChange: (value: string) => void;
+  isPreviewMode: boolean;
 }) {
   const style = {
     backgroundColor: element.properties.style?.backgroundColor,
@@ -1106,17 +1139,16 @@ function PreviewElement({
       return (
         <button
           onClick={() => {
-            try {
-              // eslint-disable-next-line no-eval
-              eval(element.properties.onClick || "");
-            } catch (error) {
-              console.error("Error executing button action:", error);
+            if (isPreviewMode && element.properties.href) {
+              window.open(element.properties.href, '_blank');
             }
           }}
+          type={element.properties.type || 'button'}
+          disabled={element.properties.disabled || false}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           style={style}
         >
-          {element.properties.text}
+          {value || element.properties.text}
         </button>
       );
     case "text":
