@@ -16,14 +16,32 @@ const DataTab: React.FC<DataTabProps> = ({ elements, onUpdateElementData, theme 
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<TableData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+
+  // Auto-hide notification after 3 seconds
+  React.useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   const tableElements = elements.filter(el => el.type === 'table');
+  
+  console.log('Table elements:', tableElements);
 
   const handleEditTable = (elementId: string) => {
     const element = elements.find(el => el.id === elementId);
     if (element) {
+      console.log('Editing table:', element.id, element.properties.data);
       setSelectedElement(elementId);
-      setEditingData(element.properties.data || { headers: ['Header 1', 'Header 2'], rows: [['', '']] });
+      
+      const defaultData = { headers: ['Header 1', 'Header 2'], rows: [['', '']] };
+      const tableData = element.properties.data || defaultData;
+      
+      setEditingData(tableData);
       setIsEditing(true);
     }
   };
@@ -89,8 +107,29 @@ const DataTab: React.FC<DataTabProps> = ({ elements, onUpdateElementData, theme 
 
   const handleSave = () => {
     if (selectedElement && editingData) {
-      onUpdateElementData(selectedElement, { data: editingData });
+      console.log('Saving table data for element:', selectedElement, editingData);
+      
+      // Create a deep copy of the data to ensure all changes are processed
+      const dataToSave = {
+        data: {
+          headers: [...editingData.headers],
+          rows: editingData.rows.map(row => [...row])
+        }
+      };
+      
+      // Update the element data
+      onUpdateElementData(selectedElement, dataToSave);
+      
+      // Show success notification
+      setNotification({
+        message: 'Table data updated successfully! The preview has been updated.',
+        type: 'success'
+      });
+      
+      // Reset editor state
       setIsEditing(false);
+      setSelectedElement(null);
+      setEditingData(null);
     }
   };
 
@@ -106,6 +145,19 @@ const DataTab: React.FC<DataTabProps> = ({ elements, onUpdateElementData, theme 
         <Table2 className="w-5 h-5" />
         Data Management
       </h2>
+
+      {/* Notification */}
+      {notification && (
+        <div 
+          className={`mb-4 p-3 rounded-md ${
+            notification.type === 'success' 
+              ? (theme === 'dark' ? 'bg-green-800 text-green-100' : 'bg-green-100 text-green-800') 
+              : (theme === 'dark' ? 'bg-red-800 text-red-100' : 'bg-red-100 text-red-800')
+          }`}
+        >
+          {notification.message}
+        </div>
+      )}
 
       {!isEditing ? (
         <div className="space-y-4">
