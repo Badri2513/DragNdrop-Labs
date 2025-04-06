@@ -144,40 +144,52 @@ function App() {
     localStorage.setItem(STORAGE_KEYS.ELEMENT_STATES, JSON.stringify(elementStates));
   }, [elementStates]);
 
-  // Save project data to localStorage whenever it changes
+  // Save project data to localStorage
   useEffect(() => {
-    const projectData = {
-      elements,
-      elementStates,
-      theme,
-      canvasWidth,
-      canvasHeight,
-      selectedElement,
-      isPreviewMode,
-      timestamp: new Date().toISOString()
-    };
-    localStorage.setItem('dragndrop-project', JSON.stringify(projectData));
+    try {
+      const projectData = {
+        elements,
+        elementStates,
+        theme,
+        canvasWidth,
+        canvasHeight,
+        selectedElement,
+        isPreviewMode,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Only save if there are elements
+      if (elements.length > 0) {
+        localStorage.setItem('dragndrop-project', JSON.stringify(projectData));
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.warn('LocalStorage quota exceeded. Some data may not be saved.');
+        // Optionally implement a fallback storage strategy here
+      } else {
+        console.error('Error saving to localStorage:', error);
+      }
+    }
   }, [elements, elementStates, theme, canvasWidth, canvasHeight, selectedElement, isPreviewMode]);
 
   // Load project data from localStorage on initial load
   useEffect(() => {
-    const savedProject = localStorage.getItem('dragndrop-project');
-    if (savedProject) {
-      try {
+    try {
+      const savedProject = localStorage.getItem('dragndrop-project');
+      if (savedProject) {
         const projectData = JSON.parse(savedProject);
         loadDesign(projectData);
         // Restore editor state
         if (projectData.selectedElement) {
           selectElement(projectData.selectedElement);
         }
-        if (projectData.isPreviewMode) {
-          togglePreviewMode();
-        }
-      } catch (error) {
-        console.error('Error loading saved project:', error);
       }
+    } catch (error) {
+      console.error('Error loading from localStorage:', error);
+      // Clear corrupted data
+      localStorage.removeItem('dragndrop-project');
     }
-  }, [loadDesign, selectElement, togglePreviewMode]);
+  }, [loadDesign, selectElement]);
 
   const handleAddTable = () => {
     const newTable = {
@@ -1040,6 +1052,8 @@ function App() {
                                     value={elementStates[element.id]}
                                     onChange={(value) => setElementState(element.id, value)}
                                     isPreviewMode={isPreviewMode}
+                                    elements={elements}
+                                    setElementState={setElementState}
                                   />
                                 </div>
                               </div>
@@ -1129,11 +1143,24 @@ function PreviewElement({
   value,
   onChange,
   isPreviewMode,
+  elements,
+  setElementState,
 }: {
   element: any;
   value?: string;
   onChange: (value: string) => void;
   isPreviewMode: boolean;
+  elements: Array<{
+    id: string;
+    type: string;
+    properties: {
+      text?: string;
+      data?: {
+        rows?: string[][];
+      };
+    };
+  }>;
+  setElementState: (id: string, value: string) => void;
 }) {
   const style = {
     backgroundColor: element.properties.style?.backgroundColor,
@@ -1225,21 +1252,51 @@ function PreviewElement({
       );
     case "input":
       return (
-        <div className="relative">
-          <input
-            type="text"
-            value={value !== undefined ? value : ""}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={element.properties.text}
-            readOnly={isPreviewMode}
-            className={`w-full px-4 py-2 border rounded focus:outline-none transition-all ${
-              isPreviewMode ? 'bg-opacity-90' : 'focus:ring-2 focus:ring-blue-400 focus:border-blue-400'
-            }`}
-            style={{
-              ...style,
-              boxShadow: isPreviewMode ? 'inset 0 2px 4px rgba(0,0,0,0.02)' : 'none',
-            }}
-          />
+        <div className="relative flex flex-col gap-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={value === undefined ? '' : value}
+              onClick={(e) => {
+                e.stopPropagation();
+                const input = e.target as HTMLInputElement;
+                input.focus();
+              }}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setElementState(element.id, newValue);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && element.properties.destinationTableId) {
+                  const tableElement = elements.find(el => el.id === element.properties.destinationTableId);
+                  if (tableElement && tableElement.type === 'table') {
+                    const newRow = [value || ''];
+                    const updatedTable = {
+                      ...tableElement,
+                      properties: {
+                        ...tableElement.properties,
+                        data: {
+                          ...tableElement.properties.data,
+                          rows: [...(tableElement.properties.data?.rows || []), newRow]
+                        }
+                      }
+                    };
+                    onChange(JSON.stringify(updatedTable));
+                    setElementState(element.id, ''); // Clear the input after submission
+                  }
+                }
+              }}
+              placeholder={element.properties.text}
+              readOnly={false}
+              className={`flex-1 px-4 py-2 border rounded focus:outline-none transition-all ${
+                isPreviewMode ? 'bg-opacity-90' : 'focus:ring-2 focus:ring-blue-400 focus:border-blue-400'
+              }`}
+              style={{
+                ...style,
+                boxShadow: isPreviewMode ? 'inset 0 2px 4px rgba(0,0,0,0.02)' : 'none',
+              }}
+            />
+          </div>
           {isPreviewMode && (
             <div className="absolute inset-0 pointer-events-none rounded" 
               style={{boxShadow: '0 0 0 1px rgba(0,0,0,0.05)', opacity: 0.5}}></div>

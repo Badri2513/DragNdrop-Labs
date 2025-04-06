@@ -377,7 +377,7 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
                 
                 <div className="mb-3">
                   <label className="block text-sm mb-1">Input Type</label>
-              <select
+                  <select
                     value={localState.type || 'text'}
                     onChange={(e) => handleChange('type', e.target.value)}
                     className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
@@ -388,8 +388,8 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
                     <option value="number">Number</option>
                     <option value="tel">Telephone</option>
                     <option value="url">URL</option>
-              </select>
-            </div>
+                  </select>
+                </div>
 
                 <div className="mb-3">
                   <label className="block text-sm mb-1">Placeholder</label>
@@ -401,30 +401,22 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="mb-3">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={localState.required || false}
-                        onChange={(e) => handleChange('required', e.target.checked)}
-                        className="rounded"
-                      />
-                      <span className="text-sm">Required</span>
-                    </label>
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={localState.disabled || false}
-                        onChange={(e) => handleChange('disabled', e.target.checked)}
-                        className="rounded"
-                      />
-                      <span className="text-sm">Disabled</span>
-                    </label>
-                  </div>
+                <div className="mb-3">
+                  <label className="block text-sm mb-1">Destination Table</label>
+                  <select
+                    value={localState.destinationTableId || ''}
+                    onChange={(e) => handleChange('destinationTableId', e.target.value)}
+                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
+                  >
+                    <option value="">Select a table...</option>
+                    {elements
+                      .filter((el) => el.type === 'table')
+                      .map((table) => (
+                        <option key={table.id} value={table.id}>
+                          {table.properties.text || `Table ${table.id.slice(0, 4)}`}
+                        </option>
+                      ))}
+                  </select>
                 </div>
               </div>
             )}
