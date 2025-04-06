@@ -517,6 +517,7 @@ function App() {
     },
   ];
 
+  // Drag and drop functionality with Enter key handling
   const handleMouseDown = (e: React.MouseEvent, id: string) => {
     if (isPreviewMode) return;
     e.preventDefault();
@@ -535,6 +536,12 @@ function App() {
     const x = rect.left - canvasRect.left;
     const y = rect.top - canvasRect.top;
     
+    // Store initial mouse position in the component, not in the state
+    // You could use a ref for this
+    const mouseStartX = e.clientX;
+    const mouseStartY = e.clientY;
+    
+    // Only include properties that are defined in your type
     setDraggingElement({
       id,
       x,
@@ -567,7 +574,6 @@ function App() {
     element.style.transition = 'none';
     element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
   }, [draggingElement]);
-
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!draggingElement || e.key !== 'Enter') return;
     
@@ -588,6 +594,7 @@ function App() {
       };
     }
   }, [draggingElement, handleMouseMove, handleMouseUp, handleKeyDown]);
+
 
   const handleSnap = (x: number, y: number) => {
     if (!draggingElement) return;
