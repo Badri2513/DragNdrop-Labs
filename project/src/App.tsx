@@ -21,12 +21,8 @@ import {
   Share2,
   Palette,
   FileJson,
-<<<<<<< HEAD
   FileCode,
   Settings
-=======
-  FileCode
->>>>>>> main
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
@@ -222,14 +218,16 @@ function App() {
     if (isPreviewMode) return;
     e.preventDefault();
     e.stopPropagation();
-    
+
+  
     const element = document.getElementById(id);
     if (!element) return;
-    
+  
     const rect = element.getBoundingClientRect();
     const canvas = document.getElementById('canvas');
     if (!canvas) return;
-    
+  
+
     const canvasRect = canvas.getBoundingClientRect();
     
     // Get the current position relative to canvas
@@ -251,120 +249,67 @@ function App() {
     });
   };
 
-const handleMouseMove = useCallback((e: MouseEvent) => {
-  if (!draggingElement) return;
   
-  const canvas = document.getElementById('canvas');
-  if (!canvas) return;
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!draggingElement) return;
   
-  const canvasRect = canvas.getBoundingClientRect();
+    const element = document.getElementById(draggingElement.id);
+    if (!element) return;
   
-  // Calculate new position based on mouse movement
-  const newX = e.clientX - canvasRect.left - (draggingElement.width / 2);
-  const newY = e.clientY - canvasRect.top - (draggingElement.height / 2);
+    const canvas = document.getElementById('canvas');
+    if (!canvas) return;
   
-  // Constrain to canvas bounds
-  const constrainedX = Math.max(0, Math.min(newX, canvasRect.width - draggingElement.width));
-  const constrainedY = Math.max(0, Math.min(newY, canvasRect.height - draggingElement.height));
+    const canvasRect = canvas.getBoundingClientRect();
+    
+    // Calculate new position based on mouse movement
+    const newX = e.clientX - canvasRect.left - (draggingElement.width / 2);
+    const newY = e.clientY - canvasRect.top - (draggingElement.height / 2);
   
-  // Update element position directly in the DOM
-  const element = document.getElementById(draggingElement.id);
-  if (element) {
+    // Constrain to canvas bounds
+    const constrainedX = Math.max(0, Math.min(newX, canvasRect.width - draggingElement.width));
+    const constrainedY = Math.max(0, Math.min(newY, canvasRect.height - draggingElement.height));
+  
+    // Update element position
     element.style.transition = 'none';
     element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
-  }
-}, [draggingElement]);
+  }, [draggingElement]);
+  
+  const handleMouseUp = useCallback(() => {
+    if (!draggingElement) return;
+  
 
-const handleMouseUp = useCallback(() => {
-  if (!draggingElement) return;
-  
-  const element = document.getElementById(draggingElement.id);
-  if (!element) {
-    setDraggingElement(null);
-    return;
-  }
-  
-  const rect = element.getBoundingClientRect();
-  const canvas = document.getElementById('canvas');
-  if (!canvas) {
-    setDraggingElement(null);
-    return;
-  }
-  
-  const canvasRect = canvas.getBoundingClientRect();
-  const x = rect.left - canvasRect.left;
-  const y = rect.top - canvasRect.top;
-  
-  // Snap to grid
-  const gridSize = 10;
-  const snappedX = Math.round(x / gridSize) * gridSize;
-  const snappedY = Math.round(y / gridSize) * gridSize;
-  
-  // Reset the transition for a smooth finish
-  element.style.transition = 'transform 0.1s ease-out';
-  
-  // Update in store
-  updateElementPosition(draggingElement.id, snappedX, snappedY);
-  
-  // Important: Clear the dragging state
-  setDraggingElement(null);
-}, [draggingElement, updateElementPosition]);
-
-const handleKeyDown = useCallback((e: KeyboardEvent) => {
-  // Check if we're currently dragging and the Enter key was pressed
-  if (draggingElement && e.key === 'Enter') {
     const element = document.getElementById(draggingElement.id);
     if (!element) {
       setDraggingElement(null);
       return;
     }
-    
-    const rect = element.getBoundingClientRect();
-    const canvas = document.getElementById('canvas');
-    if (!canvas) {
-      setDraggingElement(null);
-      return;
-    }
-    
-    const canvasRect = canvas.getBoundingClientRect();
-    const x = rect.left - canvasRect.left;
-    const y = rect.top - canvasRect.top;
-    
-    // Snap to grid
-    const gridSize = 10;
-    const snappedX = Math.round(x / gridSize) * gridSize;
-    const snappedY = Math.round(y / gridSize) * gridSize;
-    
-    // Reset the transition for a smooth finish
-    element.style.transition = 'transform 0.1s ease-out';
-    
-    // Update in store
-    updateElementPosition(draggingElement.id, snappedX, snappedY);
-    
-    // Clear the dragging state
-    setDraggingElement(null);
-    
-    // Prevent default Enter key behavior
-    e.preventDefault();
-  }
-}, [draggingElement, updateElementPosition]);
 
-// Combined useEffect to handle all event listeners
-useEffect(() => {
-  // Only add listeners when we start dragging
-  if (draggingElement) {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    window.addEventListener('keydown', handleKeyDown);
-  }
   
-  // Cleanup function - ALWAYS remove listeners
-  return () => {
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-    window.removeEventListener('keydown', handleKeyDown);
-  };
-}, [draggingElement, handleMouseMove, handleMouseUp, handleKeyDown]);
+    setDraggingElement(null);
+  }, [draggingElement, updateElementPosition]);
+  
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!draggingElement || e.key !== 'Enter') return;
+    
+    // Simulate a mouse up event to drop the element
+    handleMouseUp();
+  }, [draggingElement, handleMouseUp]);
+  
+  useEffect(() => {
+    if (draggingElement) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('keydown', handleKeyDown);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [draggingElement, handleMouseMove, handleMouseUp, handleKeyDown]);
+
+
   const handleSnap = (x: number, y: number) => {
     if (!draggingElement) return;
     setDraggingElement({
@@ -894,8 +839,6 @@ useEffect(() => {
                                   Download as HTML
                                 </button>
                               </div>
-<<<<<<< HEAD
-=======
                             </div>
                           )}
                         </div>
@@ -963,256 +906,6 @@ useEffect(() => {
                         </button>
                       </div>
                     </div>
-
-                    <div className="flex gap-4">
-                      <div className="w-64">
-                        <div
-                          className={`rounded-lg shadow p-4 ${
-                            theme === "dark" ? "bg-gray-800" : "bg-white"
-                          }`}
-                        >
-                          <h2 className="font-semibold mb-4">Component Tree</h2>
-                          <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-                            <ComponentTree
-                              elements={elements}
-                              selectedElement={selectedElement}
-                              onSelect={selectElement}
-                              theme={theme}
-                            />
-                          </div>
-                        </div>
-
-                        {!isPreviewMode && (
-                          <div
-                            className={`rounded-lg shadow p-4 mt-4 ${
-                              theme === "dark" ? "bg-gray-800" : "bg-white"
-                            }`}
-                          >
-                            <h2 className="font-semibold mb-4">Toolbox</h2>
-                            <div className="space-y-2">
-                              {toolboxItems.map((item) => (
-                                <div
-                                  key={item.type}
-                                  onClick={() => addElement(item.type as ElementType)}
-                                  className={`flex items-center gap-2 p-3 rounded cursor-pointer
-                                    ${
-                                      theme === "dark"
-                                        ? "bg-gray-700 hover:bg-gray-600"
-                                        : "bg-gray-50 hover:bg-gray-100"
-                                    }`}
-                                >
-                                  <item.icon className="w-4 h-4" />
-                                  {item.label}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div
-                        className={`flex-1 relative flex justify-center items-center ${
-                          isPreviewMode ? "pt-8" : ""
-                        }`}
-                      >
-                        {isPreviewMode ? (
-                          <PhoneTypeSelector
-                            selectedType={selectedPhoneType}
-                            onSelectType={(type) => {
-                              setSelectedPhoneType(type);
-                              if (type.name !== 'Custom') {
-                                setCanvasDimensions(type.width, type.height);
-                              }
-                            }}
-                            customWidth={canvasWidth}
-                            customHeight={canvasHeight}
-                            onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
-                            onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
-                            elements={elements}
-                            elementStates={elementStates}
-                            onElementStateChange={setElementState}
-                            canvasWidth={canvasWidth}
-                            canvasHeight={canvasHeight}
-                          />
-                        ) : (
-                          <div
-                            id="canvas"
-                            className={`rounded-lg shadow p-4 relative overflow-hidden ${
-                              theme === "dark" ? "bg-gray-800" : "bg-white"
-                            }`}
-                            style={{
-                              width: `${canvasWidth}px`,
-                              height: `${canvasHeight}px`,
-                            }}
-                            onClick={handleCanvasClick}
-                          >
-                            <CanvasGuides
-                              width={canvasWidth}
-                              height={canvasHeight}
-                              theme={theme}
-                              elements={elements}
-                              draggingElement={draggingElement || undefined}
-                              onSnap={handleSnap}
-                            />
-                            {elements.map((element) => (
-                              <div
-                                key={element.id}
-                                id={element.id}
-                                onMouseDown={(e) => handleMouseDown(e, element.id)}
-                                className={`inline-block ${
-                                  !isPreviewMode && selectedElement === element.id
-                                    ? "ring-2 ring-blue-500"
-                                    : ""
-                                } ${draggingElement?.id === element.id ? 'cursor-grabbing' : 'cursor-grab'}`}
-                                style={{
-                                  position: (element.properties.layout?.position as Position) || "absolute",
-                                  left: "0",
-                                  top: "0",
-                                  transform: element.properties.layout?.transform || `translate(${element.properties.layout?.left || "50%"}, ${element.properties.layout?.top || "50%"})`,
-                                  width: element.properties.layout?.width || "fit-content",
-                                  height: element.properties.layout?.height || "auto",
-                                  transition: draggingElement?.id === element.id ? 'none' : 'all 0.2s ease-out',
-                                  zIndex: draggingElement?.id === element.id ? 50 : 1,
-                                }}
-                              >
-                                <div style={{ width: element.properties.layout?.width || "auto" }}>
-                                  <PreviewElement
-                                    element={element}
-                                    value={elementStates[element.id]}
-                                    onChange={(value) => setElementState(element.id, value)}
-                                    isPreviewMode={isPreviewMode}
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="w-80 flex flex-col gap-4">
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => setActiveTab('style')}
-                            className={`p-2 rounded flex items-center gap-2 ${
-                              activeTab === 'style'
-                                ? theme === 'dark'
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-blue-500 text-white'
-                                : theme === 'dark'
-                                ? 'hover:bg-gray-700'
-                                : 'hover:bg-gray-200'
-                            }`}
-                          >
-                            <Palette className="w-4 h-4" />
-                            Style
-                          </button>
-                          <button
-                            onClick={() => setActiveTab('data')}
-                            className={`p-2 rounded flex items-center gap-2 ${
-                              activeTab === 'data'
-                                ? theme === 'dark'
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-blue-500 text-white'
-                                : theme === 'dark'
-                                ? 'hover:bg-gray-700'
-                                : 'hover:bg-gray-200'
-                            }`}
-                          >
-                            <Table2 className="w-4 h-4" />
-                            Data
-                          </button>
-                        </div>
-
-                        <div className={`flex-1 rounded-lg shadow p-4 overflow-auto ${
-                          theme === "dark" ? "bg-gray-800" : "bg-white"
-                        }`} style={{ maxHeight: 'calc(100vh - 200px)' }}>
-                          {activeTab === 'style' && selectedElement && (
-                            <StyleEditor
-                              elementId={selectedElement}
-                              onUpdate={handleUpdateElement}
-                              theme={theme}
-                              onLayoutChange={(property, value) => handleLayoutChange(selectedElement, property, value)}
-                            />
-                          )}
-                          {activeTab === 'data' && (
-                            <DataTab
-                              elements={elements}
-                              onUpdateElementData={handleUpdateElement}
-                              theme={theme}
-                            />
-                          )}
-                          {activeTab === 'style' && !selectedElement && (
-                            <div className="text-center text-gray-500">
-                              Select an element to edit its style
->>>>>>> main
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={handleShare}
-                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                          title="Share Design"
-                        >
-                          <Share2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={togglePreviewMode}
-                          className={`p-2 rounded ${
-                            theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-200"
-                          }`}
-                          title={isPreviewMode ? "Exit Preview" : "Preview"}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={undo}
-                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                          title="Undo"
-                        >
-                          <Undo2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={redo}
-                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                          title="Redo"
-                        >
-                          <Redo2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={toggleTheme}
-                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                          title="Toggle Theme"
-                        >
-                          {theme === "light" ? (
-                            <Moon className="w-4 h-4" />
-                          ) : (
-                            <Sun className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={handleGroupSelected}
-                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                          title="Group Elements"
-                        >
-                          <Group className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={handleUngroup}
-                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                          title="Ungroup Elements"
-                        >
-                          <Ungroup className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => selectedElement && removeElement(selectedElement)}
-                          className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-                          title="Delete Selected"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-<<<<<<< HEAD
 
                     <div className="flex gap-4">
                       <div className="w-64">
@@ -1296,6 +989,7 @@ useEffect(() => {
                                 onElementStateChange={setElementState}
                                 canvasWidth={canvasWidth}
                                 canvasHeight={canvasHeight}
+                                togglePreviewMode={togglePreviewMode}
                               />
                             </div>
                           </div>
@@ -1414,8 +1108,6 @@ useEffect(() => {
                         </div>
                       </div>
                     </div>
-=======
->>>>>>> main
                   </div>
                 </SignedIn>
                 <SignedOut>
@@ -1449,6 +1141,11 @@ function PreviewElement({
     padding: element.properties.style?.padding,
     borderRadius: element.properties.style?.borderRadius,
     fontSize: element.properties.style?.fontSize,
+    opacity: element.properties.style?.opacity,
+    visibility: element.properties.style?.visibility,
+    borderStyle: element.properties.style?.borderStyle,
+    borderWidth: element.properties.style?.borderWidth,
+    borderColor: element.properties.style?.borderColor,
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1464,6 +1161,13 @@ function PreviewElement({
     }
   };
 
+  // Common style classes for interactive elements
+  const getInteractiveClasses = () => {
+    return isPreviewMode 
+      ? "transition-all duration-200 hover:shadow-md active:scale-[0.98] active:shadow-inner"
+      : "";
+  };
+
   switch (element.type) {
     case "button":
       return (
@@ -1475,20 +1179,29 @@ function PreviewElement({
           }}
           type={element.properties.type || 'button'}
           disabled={element.properties.disabled || false}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          className={`px-4 py-2 font-medium rounded relative overflow-hidden group ${getInteractiveClasses()}`}
           style={{
             ...style,
-            cursor: isPreviewMode && element.properties.href ? 'pointer' : undefined
+            cursor: isPreviewMode && element.properties.href ? 'pointer' : undefined,
+            backgroundColor: style.backgroundColor || '#3B82F6',
+            color: style.color || 'white',
+            boxShadow: isPreviewMode ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
           }}
           title={isPreviewMode && element.properties.href ? element.properties.href : undefined}
         >
-          {value || element.properties.text}
-<<<<<<< HEAD
-          {isPreviewMode && element.properties.href && (
-            <span className="ml-1 text-xs opacity-70">↗</span>
+          {/* Hover effect overlay */}
+          {isPreviewMode && (
+            <span className="absolute inset-0 w-full h-full bg-white opacity-0 group-hover:opacity-10 transition-opacity"></span>
           )}
-=======
->>>>>>> main
+          
+          <span className="relative flex items-center justify-center gap-1">
+            {value || element.properties.text}
+            {isPreviewMode && element.properties.href && (
+              <svg className="w-3 h-3 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            )}
+          </span>
         </button>
       );
     case "text":
@@ -1497,27 +1210,45 @@ function PreviewElement({
           contentEditable={!isPreviewMode}
           suppressContentEditableWarning
           onBlur={(e) => !isPreviewMode && onChange(e.currentTarget.textContent || "")}
-          style={style}
-          className="outline-none min-w-[50px] min-h-[24px]"
+          style={{
+            ...style,
+            lineHeight: '1.5',
+            wordBreak: 'break-word',
+            textShadow: isPreviewMode && style.color === '#ffffff' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+          }}
+          className={`outline-none min-w-[50px] min-h-[24px] ${
+            !isPreviewMode ? 'focus:ring-2 focus:ring-blue-200 focus:ring-opacity-50 rounded' : ''
+          }`}
         >
           {value || element.properties.text}
         </div>
       );
     case "input":
       return (
-        <input
-          type="text"
-          value={value !== undefined ? value : ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={element.properties.text}
-          readOnly={isPreviewMode}
-          className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          style={style}
-        />
+        <div className="relative">
+          <input
+            type="text"
+            value={value !== undefined ? value : ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={element.properties.text}
+            readOnly={isPreviewMode}
+            className={`w-full px-4 py-2 border rounded focus:outline-none transition-all ${
+              isPreviewMode ? 'bg-opacity-90' : 'focus:ring-2 focus:ring-blue-400 focus:border-blue-400'
+            }`}
+            style={{
+              ...style,
+              boxShadow: isPreviewMode ? 'inset 0 2px 4px rgba(0,0,0,0.02)' : 'none',
+            }}
+          />
+          {isPreviewMode && (
+            <div className="absolute inset-0 pointer-events-none rounded" 
+              style={{boxShadow: '0 0 0 1px rgba(0,0,0,0.05)', opacity: 0.5}}></div>
+          )}
+        </div>
       );
     case "table":
       return (
-        <div className="overflow-x-auto" style={style}>
+        <div className="overflow-hidden rounded-lg shadow-sm" style={style}>
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -1530,7 +1261,7 @@ function PreviewElement({
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {element.properties.data?.rows.map((row: string[], rowIndex: number) => (
-                <tr key={rowIndex}>
+                <tr key={rowIndex} className={isPreviewMode ? 'hover:bg-gray-50 transition-colors' : ''}>
                   {row.map((cell: string, cellIndex: number) => (
                     <td key={cellIndex} className="px-6 py-4 whitespace-nowrap">
                       {cell}
@@ -1544,81 +1275,114 @@ function PreviewElement({
       );
     case "image":
       return (
-        <div style={style} className="relative group">
+        <div 
+          style={style} 
+          className={`relative group overflow-hidden rounded-lg ${
+            isPreviewMode ? 'shadow-sm hover:shadow-md transition-shadow duration-300' : ''
+          }`}
+        >
           {value ? (
-            <img
-              src={value}
-              alt="Selected"
-              className="w-full h-auto rounded"
-            />
+            <div className="relative">
+              <img
+                src={value}
+                alt="Selected"
+                className="w-full h-auto"
+              />
+              {isPreviewMode && (
+                <div className="absolute inset-0 bg-gradient-to-b from-black/0 to-black/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              )}
+            </div>
           ) : (
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center min-h-[100px]">
-              <Image className="w-8 h-8 text-gray-400 mb-2" />
-              <span className="text-gray-500">Click to select an image</span>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center min-h-[120px] bg-gray-50">
+              <svg className="w-12 h-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="text-gray-500 text-sm font-medium">Image placeholder</span>
             </div>
           )}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageSelect}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
+          {!isPreviewMode && (
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+          )}
         </div>
       );
     case "card":
       return (
-        <div className="border rounded-lg shadow-sm" style={style}>
-          <div className="p-4">
+        <div 
+          className={`border rounded-lg ${
+            isPreviewMode ? 'shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5' : 'shadow-sm'
+          }`} 
+          style={style}
+        >
+          <div className="p-5">
             <h3 className="text-lg font-semibold mb-2">
               {element.properties.text}
             </h3>
-            <p className="text-gray-600">Card content goes here</p>
+            <p className="text-gray-600 text-sm">
+              {value || "Card content goes here"}
+            </p>
+            {isPreviewMode && (
+              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                <span>Card footer</span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                </svg>
+              </div>
+            )}
           </div>
         </div>
       );
     case "container":
       return (
         <div
-          className="border-2 border-dashed border-gray-300 rounded-lg p-4 relative group"
+          className={`border border-gray-200 rounded-lg p-4 relative group ${
+            isPreviewMode ? 'bg-gray-50/50 shadow-sm' : 'border-dashed border-gray-300'
+          }`}
           style={style}
         >
-          <div className="absolute top-0 right-0 flex space-x-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              className="w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize"
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                const startX = e.clientX;
-                const startY = e.clientY;
-                const startWidth = element.properties.layout?.width || '100%';
-                const startHeight = element.properties.layout?.height || 'auto';
+          {!isPreviewMode && (
+            <div className="absolute top-0 right-0 flex space-x-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                className="w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize"
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  const startWidth = element.properties.layout?.width || '100%';
+                  const startHeight = element.properties.layout?.height || 'auto';
 
-                const handleMouseMove = (e: MouseEvent) => {
-                  const deltaX = e.clientX - startX;
-                  const deltaY = e.clientY - startY;
-                  const newWidth = `calc(${startWidth} + ${deltaX}px)`;
-                  const newHeight = `calc(${startHeight} + ${deltaY}px)`;
-                  onChange(JSON.stringify({
-                    ...element.properties,
-                    layout: {
-                      ...element.properties.layout,
-                      width: newWidth,
-                      height: newHeight
-                    }
-                  }));
-                };
+                  const handleMouseMove = (e: MouseEvent) => {
+                    const deltaX = e.clientX - startX;
+                    const deltaY = e.clientY - startY;
+                    const newWidth = `calc(${startWidth} + ${deltaX}px)`;
+                    const newHeight = `calc(${startHeight} + ${deltaY}px)`;
+                    onChange(JSON.stringify({
+                      ...element.properties,
+                      layout: {
+                        ...element.properties.layout,
+                        width: newWidth,
+                        height: newHeight
+                      }
+                    }));
+                  };
 
-                const handleMouseUp = () => {
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
+                  const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                  };
 
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
-              }}
-            />
-          </div>
-          <div className="text-center text-gray-500">
-            {element.properties.text || "Container (Drag elements here)"}
+                  document.addEventListener('mousemove', handleMouseMove);
+                  document.addEventListener('mouseup', handleMouseUp);
+                }}
+              />
+            </div>
+          )}
+          <div className={`text-center ${isPreviewMode ? 'text-gray-400 text-sm' : 'text-gray-500'}`}>
+            {element.properties.text || (isPreviewMode ? "Container" : "Container (Drag elements here)")}
           </div>
         </div>
       );
