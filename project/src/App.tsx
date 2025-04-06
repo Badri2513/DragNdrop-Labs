@@ -83,7 +83,8 @@ function App() {
     togglePreviewMode,
     loadDesign,
     setCanvasDimensions,
-    setElements
+    setElements,
+    updateElement
   } = useStore();
 
   const [draggingElement, setDraggingElement] = useState<{
@@ -213,40 +214,52 @@ function App() {
     localStorage.setItem(STORAGE_KEYS.ELEMENT_STATES, JSON.stringify(elementStates));
   }, [elementStates]);
 
-  // Save project data to localStorage whenever it changes
+  // Save project data to localStorage
   useEffect(() => {
-    const projectData = {
-      elements,
-      elementStates,
-      theme,
-      canvasWidth,
-      canvasHeight,
-      selectedElement,
-      isPreviewMode,
-      timestamp: new Date().toISOString()
-    };
-    localStorage.setItem('dragndrop-project', JSON.stringify(projectData));
+    try {
+      const projectData = {
+        elements,
+        elementStates,
+        theme,
+        canvasWidth,
+        canvasHeight,
+        selectedElement,
+        isPreviewMode,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Only save if there are elements
+      if (elements.length > 0) {
+        localStorage.setItem('dragndrop-project', JSON.stringify(projectData));
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.warn('LocalStorage quota exceeded. Some data may not be saved.');
+        // Optionally implement a fallback storage strategy here
+      } else {
+        console.error('Error saving to localStorage:', error);
+      }
+    }
   }, [elements, elementStates, theme, canvasWidth, canvasHeight, selectedElement, isPreviewMode]);
 
   // Load project data from localStorage on initial load
   useEffect(() => {
-    const savedProject = localStorage.getItem('dragndrop-project');
-    if (savedProject) {
-      try {
+    try {
+      const savedProject = localStorage.getItem('dragndrop-project');
+      if (savedProject) {
         const projectData = JSON.parse(savedProject);
         loadDesign(projectData);
         // Restore editor state
         if (projectData.selectedElement) {
           selectElement(projectData.selectedElement);
         }
-        if (projectData.isPreviewMode) {
-          togglePreviewMode();
-        }
-      } catch (error) {
-        console.error('Error loading saved project:', error);
       }
+    } catch (error) {
+      console.error('Error loading from localStorage:', error);
+      // Clear corrupted data
+      localStorage.removeItem('dragndrop-project');
     }
-  }, [loadDesign, selectElement, togglePreviewMode]);
+  }, [loadDesign, selectElement]);
 
   const handleAddTable = () => {
     const newId = nanoid();
@@ -1537,9 +1550,11 @@ function App() {
                                     onChange={(value) => setElementState(element.id, value)}
                                     isPreviewMode={isPreviewMode}
                                     elements={elements}
+
                                     elementStates={elementStates}
                                     setElementState={setElementState}
                                     updateElements={setElements}
+
                                   />
                                 </div>
                               </div>
@@ -1629,20 +1644,33 @@ function PreviewElement({
   value,
   onChange,
   isPreviewMode,
+
   elements = [],
   elementStates = {},
   setElementState = () => {},
   updateElements = () => {},
+
 }: {
   element: any;
   value?: string;
   onChange: (value: string) => void;
   isPreviewMode: boolean;
-  elements?: Array<any>;
-  elementStates?: Record<string, string>;
-  setElementState?: (id: string, value: string) => void;
-  updateElements?: (elements: Array<any>) => void;
+
+  elements: Array<{
+    id: string;
+    type: string;
+    properties: {
+      text?: string;
+      data?: {
+        rows?: string[][];
+      };
+    };
+  }>;
+  setElementState: (id: string, value: string) => void;
+
 }) {
+  const { addElement, updateElement } = useStore();
+
   const style = {
     backgroundColor: element.properties.style?.backgroundColor,
     color: element.properties.style?.textColor,
@@ -1962,39 +1990,71 @@ function PreviewElement({
       
       // Create a controlled component that uses the state value
       return (
-        <div className="relative">
-        <input
-            type={element.properties.type || "text"}
-            value={hasInteracted ? inputValue : (isPreviewMode ? "" : inputValue)}
-            onChange={(e) => {
-              setHasInteracted(true);
-              onChange(e.target.value);
-            }}
-            onFocus={() => setHasInteracted(true)}
-            placeholder={hasInteracted ? "" : (element.properties.placeholder || element.properties.text || "")}
-            maxLength={element.properties.maxLength}
-            required={element.properties.required}
-            disabled={element.properties.disabled}
-            // Only set readonly in preview mode if disabled is true
-            readOnly={isPreviewMode && element.properties.disabled}
-          className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            style={{
-              ...style,
-              backgroundColor: style.backgroundColor || '#ffffff',
-              boxShadow: isPreviewMode ? 'inset 0 2px 4px rgba(0,0,0,0.02)' : 'none',
-            }}
-            // Add a data attribute to make it easier to identify inputs
-            data-input-id={element.id}
-            name={element.id}
-            id={`input-${element.id}`}
-          />
-          {isPreviewMode && element.properties.disabled && (
-            <div className="absolute inset-0 cursor-not-allowed rounded bg-gray-100 opacity-20 pointer-events-none" />
-          )}
-          {!isPreviewMode && (
-            <div className="absolute -top-5 right-0 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-md opacity-70">
-              ID: {element.id.slice(0, 8)}
-            </div>
+
+        <div className="relative flex flex-col gap-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={value === undefined ? '' : value}
+              onClick={(e) => {
+                e.stopPropagation();
+                const input = e.target as HTMLInputElement;
+                input.focus();
+              }}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setElementState(element.id, newValue);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const newValue = value || '';
+                  if (newValue.trim()) {  // Only create/update if there's actual text
+                    // Create or update the data table
+                    const tableId = `data-table-${element.id}`;
+                    let tableElement = elements.find(el => el.id === tableId);
+                    
+                    if (!tableElement) {
+                      // Create new table if it doesn't exist
+                      const tableProperties = {
+                        text: 'Input Data Table',
+                        data: {
+                          headers: ['Input Data'],
+                          rows: [[newValue]]
+                        }
+                      };
+                      // Add the table to elements
+                      addElement('table', tableProperties);
+                    } else {
+                      // Update the table with new data
+                      const currentRows = tableElement.properties.data?.rows || [];
+                      const updatedRows = [...currentRows, [newValue]];
+                      
+                      updateElement(tableId, {
+                        data: {
+                          headers: ['Input Data'],
+                          rows: updatedRows
+                        }
+                      });
+                    }
+                  }
+                  setElementState(element.id, ''); // Clear the input after Enter
+                }
+              }}
+              placeholder={element.properties.text}
+              readOnly={false}
+              className={`flex-1 px-4 py-2 border rounded focus:outline-none transition-all ${
+                isPreviewMode ? 'bg-opacity-90' : 'focus:ring-2 focus:ring-blue-400 focus:border-blue-400'
+              }`}
+              style={{
+                ...style,
+                boxShadow: isPreviewMode ? 'inset 0 2px 4px rgba(0,0,0,0.02)' : 'none',
+              }}
+            />
+          </div>
+          {isPreviewMode && (
+            <div className="absolute inset-0 pointer-events-none rounded" 
+              style={{boxShadow: '0 0 0 1px rgba(0,0,0,0.05)', opacity: 0.5}}></div>
+
           )}
         </div>
       );

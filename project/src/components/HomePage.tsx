@@ -120,14 +120,14 @@ const HomePage: React.FC<HomePageProps> = ({ theme }) => {
         <div className="mt-20 border-t border-zinc-800 pt-8 text-center">
           <p className="text-zinc-500 text-sm">DESIGN WITHOUT COMPROMISE</p>
           <p className="text-zinc-500 text-sm">Made with ❤️ by <a href="https://github.com/Badri2513/DragNdrop-Labs" target="_blank" rel="noopener noreferrer" className="text-red-500 hover:text-red-600">Team Mustang</a></p>
-          <p className="text-zinc-500 text-sm">
-            <ul>
+          <div className="text-zinc-500 text-sm">
+            <ul className="list-none">
               <li>Saif M.S.</li>
               <li>Badrinath.M</li>
               <li>Lakshwin</li>
               <li>HarrisRaj.B</li>
             </ul>
-          </p>
+          </div>
         </div>
       </div>
     </div>
