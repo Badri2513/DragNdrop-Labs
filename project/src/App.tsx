@@ -68,7 +68,8 @@ function App() {
     togglePreviewMode,
     loadDesign,
     setCanvasDimensions,
-    setElements
+    setElements,
+    updateElement
   } = useStore();
 
   const [draggingElement, setDraggingElement] = useState<{
@@ -1144,7 +1145,7 @@ function PreviewElement({
   onChange,
   isPreviewMode,
   elements,
-  setElementState,
+  setElementState
 }: {
   element: any;
   value?: string;
@@ -1162,6 +1163,8 @@ function PreviewElement({
   }>;
   setElementState: (id: string, value: string) => void;
 }) {
+  const { addElement, updateElement } = useStore();
+
   const style = {
     backgroundColor: element.properties.style?.backgroundColor,
     color: element.properties.style?.textColor,
@@ -1267,23 +1270,38 @@ function PreviewElement({
                 setElementState(element.id, newValue);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && element.properties.destinationTableId) {
-                  const tableElement = elements.find(el => el.id === element.properties.destinationTableId);
-                  if (tableElement && tableElement.type === 'table') {
-                    const newRow = [value || ''];
-                    const updatedTable = {
-                      ...tableElement,
-                      properties: {
-                        ...tableElement.properties,
+                if (e.key === 'Enter') {
+                  const newValue = value || '';
+                  if (newValue.trim()) {  // Only create/update if there's actual text
+                    // Create or update the data table
+                    const tableId = `data-table-${element.id}`;
+                    let tableElement = elements.find(el => el.id === tableId);
+                    
+                    if (!tableElement) {
+                      // Create new table if it doesn't exist
+                      const tableProperties = {
+                        text: 'Input Data Table',
                         data: {
-                          ...tableElement.properties.data,
-                          rows: [...(tableElement.properties.data?.rows || []), newRow]
+                          headers: ['Input Data'],
+                          rows: [[newValue]]
                         }
-                      }
-                    };
-                    onChange(JSON.stringify(updatedTable));
-                    setElementState(element.id, ''); // Clear the input after submission
+                      };
+                      // Add the table to elements
+                      addElement('table', tableProperties);
+                    } else {
+                      // Update the table with new data
+                      const currentRows = tableElement.properties.data?.rows || [];
+                      const updatedRows = [...currentRows, [newValue]];
+                      
+                      updateElement(tableId, {
+                        data: {
+                          headers: ['Input Data'],
+                          rows: updatedRows
+                        }
+                      });
+                    }
                   }
+                  setElementState(element.id, ''); // Clear the input after Enter
                 }
               }}
               placeholder={element.properties.text}
