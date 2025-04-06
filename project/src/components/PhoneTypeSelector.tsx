@@ -8,11 +8,19 @@ const PreviewElement = ({
   value,
   onChange,
   isPreviewMode,
+  elements = [],
+  elementStates = {},
+  setElementState = () => {},
+  updateElements = () => {},
 }: {
   element: any;
   value?: string;
   onChange: (value: string) => void;
   isPreviewMode: boolean;
+  elements?: Array<any>;
+  elementStates?: Record<string, string>;
+  setElementState?: (id: string, value: string) => void;
+  updateElements?: (elements: Array<any>) => void;
 }) => {
   const style = {
     backgroundColor: element.properties.style?.backgroundColor,
@@ -22,29 +30,216 @@ const PreviewElement = ({
     fontSize: element.properties.style?.fontSize,
   };
 
+  // Use React.useEffect to ensure the preview updates when element properties change
+  React.useEffect(() => {
+    if (element.type === 'table' && isPreviewMode) {
+      console.log('Table element updated in PhoneSelector preview:', element.id);
+    }
+  }, [element, isPreviewMode]);
+
   switch (element.type) {
     case "button":
+      console.log(`Rendering button in PhoneSelector: ${element.id}`, element.properties);
+      
+      const [showMessage, setShowMessage] = React.useState(false);
+      const [submitMessage, setSubmitMessage] = React.useState("");
+      
+      // Auto-hide message after 3 seconds
+      React.useEffect(() => {
+        if (showMessage || submitMessage) {
+          const timer = setTimeout(() => {
+            setShowMessage(false);
+            setSubmitMessage("");
+          }, 3000);
+          return () => clearTimeout(timer);
+        }
+      }, [showMessage, submitMessage]);
+      
+      // Check for direct input-to-table submission
+      const inputElement = element.properties.submitTarget 
+        ? elements.find(el => el.id === element.properties.submitTarget)
+        : null;
+
+      if (inputElement && inputElement.properties.destinationTable) {
+        const destinationTableId = inputElement.properties.destinationTable;
+        const targetTable = elements.find(el => el.id === destinationTableId);
+        
+        // This input has a direct destination table - store data there
+        if (targetTable && targetTable.type === 'table') {
+          // Get current table data or initialize if empty
+          let tableData = targetTable.properties.data || { headers: ['Timestamp', 'Submitted Value'], rows: [] };
+          
+          // Add new row with timestamp and input value
+          const timestamp = new Date().toLocaleString();
+          const inputValue = elementStates[element.properties.submitTarget] || "";
+          const newRow = [timestamp, inputValue];
+          
+          // Update the table data
+          const updatedData = {
+            headers: tableData.headers,
+            rows: [...tableData.rows, newRow]
+          };
+          
+          // For PhoneTypeSelector, we just show the success message
+          // Since we can't directly update the table in preview mode
+          console.log(`Preview: Would store in table ${destinationTableId}:`, newRow);
+          
+          // Show success message
+          setSubmitMessage(`Data saved to table!`);
+        }
+      }
+      
+      // Determine button type/role for visual indicators
+      const isNavLink = Boolean(element.properties.href);
+      const isSubmitButton = Boolean(element.properties.submitTarget);
+      
       return (
-        <button
-          onClick={() => {
-            if (isPreviewMode && element.properties.href) {
-              window.open(element.properties.href, '_blank');
+        <div className="relative">
+          <button
+            onClick={() => {
+              if (isPreviewMode) {
+                if (element.properties.href) {
+                  window.open(element.properties.href, '_blank');
+                }
+                if (element.properties.message) {
+                  setShowMessage(true);
+                }
+                
+                // Handle form submission
+                if (element.properties.submitTarget) {
+                  const targetState = elementStates[element.properties.submitTarget] || "";
+                  console.log(`Submitting input ${element.properties.submitTarget} with value:`, targetState);
+                  
+                  // Handle different submit actions
+                  if (element.properties.submitAction === 'alert' || element.properties.submitAction === 'both') {
+                    setSubmitMessage(`Submitted: ${targetState}`);
+                  }
+                  
+                  // Store in table if enabled
+                  if (element.properties.storeSubmissions && element.properties.targetTable) {
+                    const targetTableId = element.properties.targetTable;
+                    const targetTable = elements.find(el => el.id === targetTableId);
+                    
+                    if (targetTable && targetTable.type === 'table') {
+                      // Get current table data or initialize if empty
+                      let tableData = targetTable.properties.data || { headers: ['Timestamp', 'Input Value'], rows: [] };
+                      
+                      // Add new row with timestamp and input value
+                      const timestamp = new Date().toLocaleString();
+                      const newRow = [timestamp, targetState];
+                      
+                      // Update the table data
+                      const updatedData = {
+                        headers: tableData.headers,
+                        rows: [...tableData.rows, newRow]
+                      };
+                      
+                      // Update the table element with the new data
+                      const updatedTableElement = {
+                        ...targetTable,
+                        properties: {
+                          ...targetTable.properties,
+                          data: updatedData
+                        }
+                      };
+                      
+                      // Find the index of the target table in the elements array
+                      const tableIndex = elements.findIndex(el => el.id === targetTableId);
+                      
+                      // Create a new elements array with the updated table
+                      if (tableIndex !== -1) {
+                        const newElements = [...elements];
+                        newElements[tableIndex] = updatedTableElement;
+                        
+                        // Call the function to update all elements
+                        updateElements(newElements);
+                        
+                        // Also update the element state for the table
+                        setElementState(targetTableId, JSON.stringify(updatedData));
+                        
+                        console.log(`Stored submission in table ${targetTableId}:`, updatedData);
+                      }
+                    }
+                  }
+                  
+                  // Clear the input if specified
+                  if (element.properties.submitAction === 'clear' || element.properties.submitAction === 'both') {
+                    setElementState(element.properties.submitTarget, "");
+                  }
+                }
+              }
+            }}
+            type="button"
+            disabled={element.properties.disabled || false}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer transition-all"
+            style={{
+              ...style,
+              backgroundColor: style.backgroundColor || '#3B82F6',
+              color: style.color || 'white',
+              borderRadius: style.borderRadius || '0.25rem',
+              padding: style.padding || '0.5rem 1rem',
+              cursor: isPreviewMode && (element.properties.href || element.properties.message || element.properties.submitTarget) ? 'pointer' : undefined,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}
+            title={
+              isPreviewMode 
+                ? element.properties.href 
+                  ? element.properties.href 
+                  : element.properties.submitTarget 
+                    ? `Submit ${inputElement?.properties.placeholder || 'form'}`
+                    : undefined
+                : undefined
             }
-          }}
-          type="button"
-          disabled={element.properties.disabled || false}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
-          style={{
-            ...style,
-            cursor: isPreviewMode && element.properties.href ? 'pointer' : undefined
-          }}
-          title={isPreviewMode && element.properties.href ? element.properties.href : undefined}
-        >
-          {value || element.properties.text}
-          {isPreviewMode && element.properties.href && (
-            <span className="ml-1 text-xs opacity-70">↗</span>
+          >
+            <span className="relative flex items-center justify-center gap-1">
+              {value || element.properties.text}
+              {isPreviewMode && element.properties.href && (
+                <svg className="w-3 h-3 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              )}
+              {isPreviewMode && element.properties.submitTarget && (
+                <svg className="w-3 h-3 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </span>
+          </button>
+          
+          {/* Message tooltip */}
+          {showMessage && element.properties.message && (
+            <div 
+              className="absolute left-1/2 -translate-x-1/2 -top-12 px-3 py-2 rounded shadow-lg z-50 whitespace-nowrap"
+              style={{
+                backgroundColor: element.properties.style?.messageBackgroundColor || '#333',
+                color: element.properties.style?.messageTextColor || '#fff',
+                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
+              {element.properties.message}
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px]" 
+                style={{ borderTopColor: element.properties.style?.messageBackgroundColor || '#333' }}>
+              </div>
+            </div>
           )}
-        </button>
+          
+          {/* Submit message tooltip */}
+          {submitMessage && (
+            <div 
+              className="absolute left-1/2 -translate-x-1/2 -top-12 px-3 py-2 rounded shadow-lg z-50 whitespace-nowrap"
+              style={{
+                backgroundColor: element.properties.style?.messageBackgroundColor || '#22c55e',
+                color: element.properties.style?.messageTextColor || '#fff',
+                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
+              {submitMessage}
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px]" 
+                style={{ borderTopColor: element.properties.style?.messageBackgroundColor || '#22c55e' }}>
+              </div>
+            </div>
+          )}
+        </div>
       );
     case "text":
       return (
@@ -59,16 +254,45 @@ const PreviewElement = ({
         </div>
       );
     case "input":
+      // Convert undefined values to empty string for consistency
+      const inputValue = value !== undefined ? value : "";
+      const [hasInteracted, setHasInteracted] = React.useState(false);
+      
+      // Create a controlled component that uses the state value
       return (
-        <input
-          type="text"
-          value={value !== undefined ? value : ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={element.properties.text}
-          readOnly={isPreviewMode}
-          className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          style={style}
-        />
+        <div className="relative">
+          <input
+            type={element.properties.type || "text"}
+            value={hasInteracted ? inputValue : (isPreviewMode ? "" : inputValue)}
+            onChange={(e) => {
+              setHasInteracted(true);
+              onChange(e.target.value);
+            }}
+            onFocus={() => setHasInteracted(true)}
+            placeholder={hasInteracted ? "" : (element.properties.placeholder || element.properties.text || "")}
+            maxLength={element.properties.maxLength}
+            required={element.properties.required}
+            disabled={element.properties.disabled}
+            // Only set readonly in preview mode if disabled is true
+            readOnly={isPreviewMode && element.properties.disabled}
+            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={{
+              ...style,
+              backgroundColor: style.backgroundColor || '#ffffff',
+              boxShadow: isPreviewMode ? 'inset 0 2px 4px rgba(0,0,0,0.02)' : 'none',
+            }}
+            // Add a data attribute to make it easier to identify inputs
+            data-input-id={element.id}
+          />
+          {isPreviewMode && element.properties.disabled && (
+            <div className="absolute inset-0 cursor-not-allowed rounded bg-gray-100 opacity-20 pointer-events-none" />
+          )}
+          {!isPreviewMode && (
+            <div className="absolute -top-5 right-0 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-md opacity-70">
+              ID: {element.id.slice(0, 8)}
+            </div>
+          )}
+        </div>
       );
     case "image":
       return (
@@ -107,6 +331,66 @@ const PreviewElement = ({
           <div className="text-center text-gray-500">
             {element.properties.text || "Container"}
           </div>
+        </div>
+      );
+    case "table":
+      // Try to parse the value if it's a string (it might be a JSON string of table data)
+      let tableData = element.properties.data;
+      
+      if (value && typeof value === 'string') {
+        try {
+          const parsedData = JSON.parse(value);
+          if (parsedData && parsedData.headers && parsedData.rows) {
+            console.log('Using parsed table data from value in PhoneTypeSelector:', parsedData);
+            tableData = parsedData;
+          }
+        } catch (e) {
+          console.error('Error parsing table data from value in PhoneTypeSelector:', e);
+        }
+      }
+      
+      // Default headers and rows if no data is available
+      const defaultHeaders = ['Header 1', 'Header 2', 'Header 3'];
+      const defaultRows = [
+        ['Data 1', 'Data 2', 'Data 3'],
+        ['Data 4', 'Data A', 'Data 5']
+      ];
+      
+      // Use existing data or defaults
+      const headers = tableData?.headers || defaultHeaders;
+      const rows = tableData?.rows || defaultRows;
+      
+      return (
+        <div 
+          className="overflow-hidden rounded-lg shadow-sm border border-gray-200" 
+          style={{
+            ...style,
+            backgroundColor: style.backgroundColor || '#ffffff',
+            width: element.properties.layout?.width || '400px'
+          }}
+        >
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                {headers.map((header: string, index: number) => (
+                  <th key={`header-${index}-${header}`} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {rows.map((row: string[], rowIndex: number) => (
+                <tr key={`row-${rowIndex}`} className='hover:bg-gray-50 transition-colors'>
+                  {row.map((cell: string, cellIndex: number) => (
+                    <td key={`cell-${rowIndex}-${cellIndex}`} className="px-6 py-4 whitespace-nowrap">
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       );
     default:
@@ -188,21 +472,18 @@ export const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
 
   // Calculate position adjustments based on phone model
   const getPhonePositionAdjustment = () => {
-    switch(selectedType.name) {
-      case 'iPhone 14 Pro':
-      case 'iPhone 14':
-        return '-mt-0';
-      case 'iPhone SE':
-        return '-mt-1'; 
-      case 'Samsung S23':
-        return '-mt-1';
-      case 'Google Pixel 7':
-        return '-mt-1'; 
-      case 'Custom':
-        return '-mt-1';
-      default:
-        return '-mt-3';
-    }
+    // Calculate how much to adjust the phone position for proper centering
+    const phoneWidth = selectedType.width;
+    const phoneHeight = selectedType.height;
+    
+    // Center the phone horizontally and vertically with a slight adjustment
+    return {
+      left: `50%`,
+      top: `50%`,
+      transform: `translate(-50%, -50%)`,
+      position: 'absolute' as Position,
+      marginTop: '-20px', // Slight upward adjustment to create more space
+    };
   };
 
   const renderPhoneFrame = () => {
@@ -212,22 +493,22 @@ export const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
     
     // Adjust scale calculation to create a more proportional phone size
     let scale;
-    if (viewportHeight < 900) {
-      // For smaller screens, make phone bigger
+    if (viewportHeight < 800) {
+      // For smaller screens, make phone slightly bigger
       scale = Math.min(
-        (viewportHeight * 0.9) / selectedType.height,
+        (viewportHeight * 0.75) / selectedType.height,
         (viewportWidth * 0.6) / selectedType.width
       );
     } else {
       // For larger screens, allow phone to be even bigger
       scale = Math.min(
-        (viewportHeight * 0.95) / selectedType.height,
-        (viewportWidth * 0.7) / selectedType.width
+        (viewportHeight * 0.8) / selectedType.height,
+        (viewportWidth * 0.65) / selectedType.width
       );
     }
 
     const frameStyle = {
-      transform: `scale(${scale}) rotateY(-5deg) rotateX(2deg)`,
+      transform: `scale(${scale})`,
       transformOrigin: 'center',
       width: selectedType.width,
       height: selectedType.height,
@@ -278,6 +559,64 @@ export const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
 
     const styles = getBrandSpecificStyles();
 
+    // Centered canvas container
+    const renderCanvasContent = () => {
+      // Calculate scale factor with additional padding for better visibility
+      const scaleFactor = Math.min(
+        (selectedType.width - 40) / canvasWidth,
+        (selectedType.height - 80) / canvasHeight
+      ) * 0.9; // Scale down slightly to ensure content fits
+
+        return (
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+          <div
+            style={{
+              width: canvasWidth,
+              height: canvasHeight,
+              transform: `scale(${scaleFactor})`,
+              transformOrigin: 'center',
+              position: 'relative',
+              background: '#ffffff',
+              boxShadow: '0 0 10px rgba(0,0,0,0.05)',
+              borderRadius: '4px',
+            }}
+          >
+            {elements.map((element) => (
+              <div
+                key={`preview-${element.id}`}
+                id={`preview-${element.id}`}
+                style={{
+                  position: (element.properties.layout?.position as Position) || "absolute",
+                  left: element.properties.layout?.left || "50%",
+                  top: element.properties.layout?.top || "50%",
+                  transform: element.properties.layout?.transform || `translate(-50%, -50%)`,
+                  width: element.properties.layout?.width || "fit-content",
+                  height: element.properties.layout?.height || "auto",
+                  zIndex: element.properties.layout?.zIndex || "auto",
+                  // Ensure no unintended transforms
+                  transformStyle: 'preserve-3d',
+                  backfaceVisibility: 'hidden'
+                }}
+              >
+                <PreviewElement
+                  element={element}
+                  value={elementStates[element.id]}
+                  onChange={(value: string) => onElementStateChange(element.id, value)}
+                  isPreviewMode={true}
+                  elements={elements}
+                  elementStates={elementStates}
+                  setElementState={onElementStateChange}
+                  updateElements={(newElements) => {
+                    console.log("Table update requested from PhoneTypeSelector:", newElements);
+                  }}
+                />
+              </div>
+            ))}
+            </div>
+          </div>
+        );
+    };
+
     return (
       <div className="pointer-events-none relative flex items-center justify-center">
         {/* Device shadow */}
@@ -326,42 +665,9 @@ export const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
 
               {/* Screen Content */}
             <div className={`absolute inset-[2px] ${styles.screenRadius} overflow-hidden bg-white shadow-[inset_0_0_10px_rgba(0,0,0,0.1)]`}>
-              <div
-                className="w-full h-full relative"
-                style={{
-                  width: canvasWidth,
-                  height: canvasHeight,
-                  transform: `scale(${Math.min(
-                    (selectedType.width - 16) / canvasWidth,
-                    (selectedType.height - 16) / canvasHeight
-                  )})`,
-                  transformOrigin: 'top left',
-                }}
-              >
-                {elements.map((element) => (
-                  <div
-                    key={element.id}
-                    id={element.id}
-                    className="absolute"
-                    style={{
-                      left: element.properties.layout?.left || "50%",
-                      top: element.properties.layout?.top || "50%",
-                      transform: element.properties.layout?.transform || `translate(-50%, -50%)`,
-                      width: element.properties.layout?.width || "fit-content",
-                      height: element.properties.layout?.height || "auto",
-                    }}
-                  >
-                    <PreviewElement
-                      element={element}
-                      value={elementStates[element.id]}
-                      onChange={(value: string) => onElementStateChange(element.id, value)}
-                      isPreviewMode={true}
-                    />
-                  </div>
-                ))}
-              </div>
+              {renderCanvasContent()}
             </div>
-
+            
             {/* Side Buttons */}
             {selectedType.brand === 'Apple' && (
               <>
@@ -452,135 +758,140 @@ export const PhoneTypeSelector: React.FC<PhoneTypeSelectorProps> = ({
   `;
 
   return (
-    <div className="flex flex-col items-center w-full bg-gradient-to-b from-gray-50 via-white to-gray-50 min-h-screen">
-      <div className="fixed top-0 left-0 right-0 bg-white shadow-md z-50 bg-opacity-90 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+    <div className="h-full w-full flex flex-col bg-gradient-to-b from-gray-50 via-white to-gray-50">
+      <div className="p-4 border-b bg-white shadow-sm z-10">
+        <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
             <button 
               onClick={() => {
                 if (togglePreviewMode) {
                   togglePreviewMode();
                 }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200 group"
-              title="Return to editor"
+              }} 
+              className="text-blue-500 hover:text-blue-700 px-2 py-1 rounded-md hover:bg-blue-50 transition-colors"
             >
-              <svg 
-                viewBox="0 0 24 24" 
-                className="w-5 h-5 transition-transform duration-200 group-hover:-translate-x-0.5" 
-                stroke="currentColor" 
-                fill="none" 
-                strokeWidth="2"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span className="font-medium">Back to Editor</span>
+              <span className="flex items-center">
+                <svg 
+                  viewBox="0 0 24 24" 
+                  className="w-4 h-4 mr-1" 
+                  stroke="currentColor" 
+                  fill="none" 
+                  strokeWidth="2"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Exit Preview
+              </span>
             </button>
-            <div className="h-5 w-px bg-gray-300 mx-2"></div>
-            <div className="flex items-center gap-2 text-gray-800">
-              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
-                <path d="M17,19H7V5H17M17,1H7C5.89,1 5,1.89 5,3V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V3C19,1.89 18.1,1 17,1Z" />
-              </svg>
-              <span className="font-medium">Device Preview</span>
+            <span className="text-gray-300">|</span>
+            <div className="relative">
+          <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition-all"
+              >
+                {getBrandIcon(selectedType.brand)}
+                <span className="font-medium whitespace-nowrap">{selectedType.name}</span>
+                <svg className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+          </button>
+              
+              {isDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-5 duration-150">
+                  {Object.entries(phonesByBrand).map(([brand, phones]) => (
+                    <div key={brand}>
+                      <div className="bg-gray-100 px-4 py-2 font-medium text-gray-700 flex items-center gap-2">
+                        {getBrandIcon(brand)}
+                        {brand}
+                      </div>
+                      {phones.map(phone => (
+                        <div 
+                          key={phone.name}
+                          className={getDropdownItemClass(phone)}
+                          onClick={() => {
+                            onSelectType({
+                              ...phone,
+                              width: phone.name === 'Custom' ? customWidth || 375 : phone.width,
+                              height: phone.name === 'Custom' ? customHeight || 812 : phone.height,
+                            });
+                            setIsDropdownOpen(false);
+                          }}
+                        >
+                          <Smartphone className="w-4 h-4 text-gray-500" />
+                          <div>
+                            <div>{phone.name}</div>
+                            {phone.name !== 'Custom' && (
+                              <div className="text-xs text-gray-500">{phone.width} × {phone.height}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          
-          <div className="relative" ref={dropdownRef}>
-          <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow transition-all"
-            >
-              {getBrandIcon(selectedType.brand)}
-              <span className="font-medium whitespace-nowrap">{selectedType.name}</span>
-              <svg className={`w-4 h-4 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-          </button>
-            
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-5 duration-150">
-                {Object.entries(phonesByBrand).map(([brand, phones]) => (
-                  <div key={brand}>
-                    <div className="bg-gray-100 px-4 py-2 font-medium text-gray-700 flex items-center gap-2">
-                      {getBrandIcon(brand)}
-                      {brand}
-                    </div>
-                    {phones.map(phone => (
-                      <div 
-                        key={phone.name}
-                        className={getDropdownItemClass(phone)}
-                        onClick={() => {
-                          onSelectType({
-                            ...phone,
-                            width: phone.name === 'Custom' ? customWidth || 375 : phone.width,
-                            height: phone.name === 'Custom' ? customHeight || 812 : phone.height,
-                          });
-                          setIsDropdownOpen(false);
-                        }}
-                      >
-                        <Smartphone className="w-4 h-4 text-gray-500" />
-                        <div>
-                          <div>{phone.name}</div>
-                          {phone.name !== 'Custom' && (
-                            <div className="text-xs text-gray-500">{phone.width} × {phone.height}</div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {selectedType.name === 'Custom' && (
-        <div className="mt-20 mb-6 z-40 bg-white p-4 rounded-xl shadow-md flex gap-4 items-end">
+          <div className="mt-4 pt-4 border-t flex gap-4 items-end">
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700">Width (px)</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700">Width (px)</label>
             <input
               type="number"
               value={customWidth}
               onChange={(e) => onCustomWidthChange(Number(e.target.value))}
-              className="w-28 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-28 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1 text-gray-700">Height (px)</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700">Height (px)</label>
             <input
               type="number"
               value={customHeight}
               onChange={(e) => onCustomHeightChange(Number(e.target.value))}
-              className="w-28 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="w-28 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
             />
           </div>
-          <button
-            onClick={() => onSelectType({
-              ...selectedType,
-              width: customWidth,
-              height: customHeight
-            })}
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Apply
-          </button>
-        </div>
-      )}
-
-      <div className={`flex items-center justify-center h-[calc(100vh-80px)] ${getPhonePositionAdjustment()} ${selectedType.name === 'Custom' ? 'mt-16' : 'mt-20'}`}>
-        {renderPhoneFrame()}
+            <button
+              onClick={() => onSelectType({
+                ...selectedType,
+                width: customWidth,
+                height: customHeight
+              })}
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Apply
+            </button>
+          </div>
+        )}
       </div>
       
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm py-1.5 px-4 rounded-full bg-opacity-80 backdrop-blur shadow-lg">
-        <div className="flex items-center gap-3">
-          <div>{selectedType.width} × {selectedType.height}</div>
-          <div className="h-3 w-px bg-gray-500"></div>
-          <div className="flex items-center gap-1">
-            <svg viewBox="0 0 24 24" className="w-4 h-4 opacity-70" fill="currentColor">
-              <path d="M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9M12,4.5C17,4.5 21.27,7.61 23,12C21.27,16.39 17,19.5 12,19.5C7,19.5 2.73,16.39 1,12C2.73,7.61 7,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C15.76,17.5 19.17,15.36 20.82,12C19.17,8.64 15.76,6.5 12,6.5C8.24,6.5 4.83,8.64 3.18,12Z" />
-            </svg>
-            <span className="opacity-90">Preview Mode</span>
+      <div className="flex-1 relative w-full overflow-hidden">
+        <div className="absolute inset-0 flex items-center justify-center overflow-auto">
+          <div style={{
+            position: getPhonePositionAdjustment().position,
+            left: getPhonePositionAdjustment().left,
+            top: getPhonePositionAdjustment().top,
+            transform: getPhonePositionAdjustment().transform,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          }}>
+            {renderPhoneFrame()}
+                </div>
+                </div>
+        
+        {/* Size indicator */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm py-1.5 px-4 rounded-full bg-opacity-80 backdrop-blur shadow-lg z-10">
+          <div className="flex items-center gap-3">
+            <div>{selectedType.width} × {selectedType.height}</div>
+            <div className="h-3 w-px bg-gray-500"></div>
+            <div className="flex items-center gap-1">
+              <svg viewBox="0 0 24 24" className="w-4 h-4 opacity-70" fill="currentColor">
+                <path d="M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9M12,4.5C17,4.5 21.27,7.61 23,12C21.27,16.39 17,19.5 12,19.5C7,19.5 2.73,16.39 1,12C2.73,7.61 7,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C15.76,17.5 19.17,15.36 20.82,12C19.17,8.64 15.76,6.5 12,6.5C8.24,6.5 4.83,8.64 3.18,12Z" />
+              </svg>
+              <span className="opacity-90">Preview Mode</span>
+            </div>
           </div>
         </div>
       </div>

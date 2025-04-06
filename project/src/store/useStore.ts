@@ -11,11 +11,22 @@ export interface Element {
     onClick?: string;
     href?: string;
     value?: string;
+    message?: string;
     type?: 'button' | 'submit' | 'reset';
     disabled?: boolean;
     placeholder?: string;
     required?: boolean;
     maxLength?: number;
+    submitTarget?: string;
+    submitAction?: string;
+    targetTable?: string;
+    storeSubmissions?: boolean;
+    destinationTable?: string;
+    submitButtonId?: string;
+    data?: {
+      headers: string[];
+      rows: string[][];
+    };
     style?: {
       backgroundColor?: string;
       textColor?: string;
@@ -32,6 +43,8 @@ export interface Element {
       fontWeight?: string;
       textAlign?: string;
       textDecoration?: string;
+      messageBackgroundColor?: string;
+      messageTextColor?: string;
     };
     layout?: {
       position?: string;
@@ -42,10 +55,6 @@ export interface Element {
       transform?: string;
       alignment?: 'left' | 'center' | 'right';
       zIndex?: string;
-    };
-    data?: {
-      headers: string[];
-      rows: string[][];
     };
   };
   groupId?: string;
@@ -243,6 +252,8 @@ const useStore = create<State>((set) => ({
 
   setElementState: (id, value) => {
     set((state) => {
+      console.log(`Setting element state for ${id}:`, { value });
+      
       const element = state.elements.find(el => el.id === id);
       if (!element) {
         // Just update the state if element not found
@@ -295,6 +306,7 @@ const useStore = create<State>((set) => ({
         }
       } else if (element.type === 'text' || element.type === 'input') {
         // For text and input, just update the element state without trying to parse JSON
+        console.log(`Updating text/input state for ${id} to: "${value}"`);
         saveState({ elementStates: updatedElementStates });
         return { elementStates: updatedElementStates };
       } else {
@@ -342,6 +354,8 @@ const useStore = create<State>((set) => ({
 
   updateElementPosition: (id, x, y) => {
     set((state) => {
+      console.log(`Updating position for element ${id} to x: ${x}px, y: ${y}px`);
+      
       const newElements = state.elements.map((el) =>
         el.id === id
           ? {
@@ -363,14 +377,25 @@ const useStore = create<State>((set) => ({
           : el
       );
       
+      // Force an update to element state to trigger UI refresh
+      const updatedElementStates = { ...state.elementStates };
+      
+      // If this is a button, we want to make sure its position is reflected
+      const element = state.elements.find(el => el.id === id);
+      if (element && element.type === 'button') {
+        // Create a position indicator in the state
+        updatedElementStates[`${id}_pos`] = JSON.stringify({ x, y, timestamp: Date.now() });
+      }
+      
       // Save both the elements and their states
       saveState({ 
         elements: newElements,
-        elementStates: state.elementStates
+        elementStates: updatedElementStates
       });
       
       return {
         elements: newElements,
+        elementStates: updatedElementStates,
         history: {
           past: [...state.history.past, state.elements],
           present: newElements,

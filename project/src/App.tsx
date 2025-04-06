@@ -22,7 +22,11 @@ import {
   Palette,
   FileJson,
   FileCode,
-  Settings
+  Settings,
+  Square,
+  Table,
+  SquareStack,
+  Pencil
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import StyleEditor from './components/StyleEditor';
@@ -33,6 +37,7 @@ import useStore from './store/useStore';
 import DataTab from './components/DataTab';
 import HomePage from './components/HomePage';
 import LandingPage from './components/LandingPage';
+import { nanoid } from 'nanoid';
 
 // Local storage keys
 const STORAGE_KEYS = {
@@ -45,6 +50,16 @@ const STORAGE_KEYS = {
 
 type ElementType = "button" | "text" | "input" | "table" | "container" | "image" | "card";
 type Position = "absolute" | "relative" | "fixed" | "static" | "sticky";
+
+// Add phone presets near the top where other constants and types are defined
+const phonePresets = [
+  { name: 'iPhone 14 Pro', width: 393, height: 852, brand: 'Apple', notch: true, dynamicIsland: true },
+  { name: 'iPhone 14', width: 390, height: 844, brand: 'Apple', notch: true, dynamicIsland: false },
+  { name: 'iPhone SE', width: 375, height: 667, brand: 'Apple', notch: false, dynamicIsland: false },
+  { name: 'Samsung S23', width: 360, height: 780, brand: 'Samsung', notch: false, dynamicIsland: false },
+  { name: 'Google Pixel 7', width: 412, height: 915, brand: 'Google', notch: false, dynamicIsland: false },
+  { name: 'Custom', width: 375, height: 667, brand: 'Custom', notch: false, dynamicIsland: false },
+];
 
 function App() {
   const {
@@ -79,14 +94,7 @@ function App() {
     width: number;
     height: number;
   } | null>(null);
-  const [selectedPhoneType, setSelectedPhoneType] = useState({
-    name: 'iPhone 14 Pro',
-    width: 393,
-    height: 852,
-    brand: 'Apple',
-    notch: true,
-    dynamicIsland: true
-  });
+  const [selectedPhoneType, setSelectedPhoneType] = useState(phonePresets[2]);
   const [activeTab, setActiveTab] = useState<'elements' | 'style' | 'data'>('elements');
   const [projects, setProjects] = useState<Array<{
     id: string;
@@ -99,6 +107,67 @@ function App() {
   });
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+
+  // Add a state for tracking element position changes to force re-render in preview
+  const [positionUpdateCounter, setPositionUpdateCounter] = useState(0);
+  
+  const [customWidth, setCustomWidth] = useState(375);
+  const [customHeight, setCustomHeight] = useState(667);
+
+  // Update canvas dimensions when phone size changes
+  useEffect(() => {
+    if (selectedPhoneType.name === 'Custom') {
+      setCanvasDimensions(customWidth, customHeight);
+    } else {
+      setCanvasDimensions(selectedPhoneType.width, selectedPhoneType.height);
+    }
+  }, [selectedPhoneType, customWidth, customHeight, setCanvasDimensions]);
+  
+  // Update position counter whenever elements change to force re-renders
+  useEffect(() => {
+    setPositionUpdateCounter(prev => prev + 1);
+  }, [elements]);
+  
+  // When updateElementPosition is called, force a PhoneTypeSelector re-render
+  const originalUpdateElementPosition = updateElementPosition;
+  const wrappedUpdateElementPosition = useCallback((id: string, x: number, y: number) => {
+    originalUpdateElementPosition(id, x, y);
+    // Wait a frame to ensure store updates are processed
+    requestAnimationFrame(() => {
+      setPositionUpdateCounter(prev => prev + 1);
+    });
+  }, [originalUpdateElementPosition]);
+  
+  // Replace the original with our wrapped version
+  const handleMouseUp = useCallback(() => {
+    if (!draggingElement) return;
+  
+    const element = document.getElementById(draggingElement.id);
+    if (element) {
+      // Get current position
+      const rect = element.getBoundingClientRect();
+      const canvas = document.getElementById('canvas');
+      if (canvas) {
+        const canvasRect = canvas.getBoundingClientRect();
+        const x = rect.left - canvasRect.left;
+        const y = rect.top - canvasRect.top;
+        
+        // Snap to grid
+        const gridSize = 10;
+        const snappedX = Math.round(x / gridSize) * gridSize;
+        const snappedY = Math.round(y / gridSize) * gridSize;
+        
+        // Update element position with smooth transition
+        element.style.transition = 'transform 0.2s ease-out';
+        element.style.transform = `translate(${snappedX}px, ${snappedY}px)`;
+        
+        // Update the element's position in the store
+        wrappedUpdateElementPosition(draggingElement.id, snappedX, snappedY);
+      }
+    }
+  
+    setDraggingElement(null);
+  }, [draggingElement, wrappedUpdateElementPosition]);
 
   // Load saved data from localStorage on initial render
   useEffect(() => {
@@ -193,37 +262,272 @@ function App() {
   }, [loadDesign, selectElement]);
 
   const handleAddTable = () => {
-    const newTable = {
-      id: `table-${Date.now()}`,
-      type: 'table' as ElementType,
+    const newId = nanoid();
+    
+    const newElement: any = {
+      id: newId,
+      type: 'table',
       properties: {
+        text: 'Form Submissions',
+        data: {
+          headers: ['Timestamp', 'Submitted Value'],
+          rows: []
+        },
+        style: {
+          backgroundColor: '#ffffff',
+          textColor: '#000000',
+          borderRadius: '8px',
+          padding: '8px',
+          borderWidth: '1px',
+          borderStyle: 'solid',
+          borderColor: '#e5e7eb',
+        },
+        layout: {
+          position: 'absolute',
+          left: '50%',
+          top: '70%',
+          transform: 'translate(-50%, -50%)',
+          width: '80%',
+          height: 'auto',
+        }
+      }
+    };
+    
+    setElements([...elements, newElement]);
+    
+    // Select the newly created element after a brief delay
+    setTimeout(() => {
+      handleElementSelect(newId);
+    }, 100);
+  };
+
+  const handleAddButton = () => {
+    const newId = nanoid();
+    
+    const newElement: any = {
+      id: newId,
+      type: 'button',
+      properties: {
+        text: 'Click Me',
+        message: 'Button clicked!',
+        submitTarget: '',  // This will be empty by default until user selects an input
+        submitAction: 'both',  // Clear and show message by default
+        style: {
+          backgroundColor: '#3B82F6',
+          textColor: '#ffffff',
+          padding: '8px 16px',
+          borderRadius: '4px',
+          fontSize: '16px',
+          messageBackgroundColor: '#2563EB',
+          messageTextColor: '#ffffff',
+        },
         layout: {
           position: 'absolute',
           left: '50%',
           top: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '400px'
-        },
-        data: {
-          headers: ['Name', 'Age', 'Email'],
-          rows: [
-            ['John Doe', '30', 'john@example.com'],
-            ['Jane Smith', '25', 'jane@example.com']
-          ]
+          width: 'auto',
+          height: 'auto',
         }
       }
     };
-    setElements([...elements, newTable]);
+    
+    setElements([...elements, newElement]);
+    
+    // Select the newly created element after a brief delay
+    setTimeout(() => {
+      handleElementSelect(newId);
+    }, 100);
   };
 
   const toolboxItems = [
-    { type: "button", icon: ButtonIcon, label: "Button" },
-    { type: "text", icon: Type, label: "Text" },
-    { type: "input", icon: Type, label: "Input" },
-    { type: "table", icon: Table2, label: "Table", onClick: handleAddTable },
-    { type: "image", icon: Image, label: "Image" },
-    { type: "card", icon: CreditCard, label: "Card" },
-    { type: "container", icon: Group, label: "Container" },
+    {
+      id: 'button',
+      name: 'Button',
+      icon: <Square className="w-5 h-5" />,
+      onClick: handleAddButton,
+    },
+    {
+      id: 'submit-button',
+      name: 'Submit Button',
+      icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>,
+      onClick: () => {
+        const newId = nanoid();
+        
+        // Find any existing input elements
+        const existingInputs = elements.filter(el => el.type === 'input');
+        const firstInputId = existingInputs.length > 0 ? existingInputs[0].id : '';
+        
+        // Find any existing table elements
+        const existingTables = elements.filter(el => el.type === 'table');
+        const firstTableId = existingTables.length > 0 ? existingTables[0].id : '';
+        
+        const newElement: any = {
+          id: newId,
+          type: 'button',
+          properties: {
+            text: 'Submit',
+            message: 'Form submitted!',
+            submitTarget: firstInputId,
+            submitAction: 'both',
+            storeSubmissions: Boolean(firstTableId),
+            targetTable: firstTableId,
+            style: {
+              backgroundColor: '#10b981',
+              textColor: '#ffffff',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              fontSize: '16px',
+              messageBackgroundColor: '#059669',
+              messageTextColor: '#ffffff',
+            },
+            layout: {
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 'auto',
+              height: 'auto',
+            }
+          }
+        };
+        
+        setElements([...elements, newElement]);
+        
+        // Select the newly created element after a brief delay
+        setTimeout(() => {
+          handleElementSelect(newId);
+        }, 100);
+      },
+    },
+    {
+      id: 'text',
+      name: 'Text',
+      icon: <Type className="w-5 h-5" />,
+      onClick: () => addElement("text" as ElementType)
+    },
+    {
+      id: 'input',
+      name: 'Input',
+      icon: <Pencil className="w-5 h-5" />,
+      onClick: () => {
+        // Find if there's an existing table to link to
+        const existingTables = elements.filter(el => el.type === 'table');
+        const firstTableId = existingTables.length > 0 ? existingTables[0].id : '';
+        
+        const newId = nanoid();
+        const newElement: any = {
+          id: newId,
+          type: 'input',
+          properties: {
+            text: 'Enter text here',
+            placeholder: 'Type something...',
+            // If there's a table, automatically link to it
+            destinationTable: firstTableId,
+            style: {
+              backgroundColor: '#ffffff',
+              textColor: '#000000',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              fontSize: '16px',
+            },
+            layout: {
+              position: 'absolute',
+              left: '50%',
+              top: '40%',
+              transform: 'translate(-50%, -50%)',
+              width: '250px',
+              height: 'auto',
+            }
+          }
+        };
+        
+        setElements([...elements, newElement]);
+        
+        // Select the newly created element after a brief delay
+        setTimeout(() => {
+          handleElementSelect(newId);
+          
+          // If a table exists, automatically create a submit button
+          if (firstTableId) {
+            setTimeout(() => {
+              handleAddSubmitButtonForInput(newId, firstTableId);
+            }, 200);
+          }
+        }, 100);
+      }
+    },
+    {
+      id: 'table',
+      name: 'Table',
+      icon: <Table className="w-5 h-5" />,
+      onClick: handleAddTable
+    },
+    {
+      id: 'image',
+      name: 'Image',
+      icon: <Image className="w-5 h-5" />,
+      onClick: () => addElement("image" as ElementType)
+    },
+    {
+      id: 'card',
+      name: 'Card',
+      icon: <SquareStack className="w-5 h-5" />,
+      onClick: () => addElement("card" as ElementType)
+    },
+    {
+      id: 'container',
+      name: 'Container',
+      icon: <Layers className="w-5 h-5" />,
+      onClick: () => addElement("container" as ElementType)
+    },
+    {
+      id: 'form-button',
+      name: 'Form Button',
+      icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2z" />
+      </svg>,
+      onClick: () => {
+        const newId = nanoid();
+        
+        const newElement: any = {
+          id: newId,
+          type: 'button',
+          properties: {
+            text: 'Save to Table',
+            message: 'Data saved!',
+            submitAction: 'both',
+            storeSubmissions: true,
+            style: {
+              backgroundColor: '#3b82f6',
+              textColor: '#ffffff',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              fontSize: '16px',
+              messageBackgroundColor: '#2563eb',
+              messageTextColor: '#ffffff',
+            },
+            layout: {
+              position: 'absolute',
+              left: '50%',
+              top: '60%',
+              transform: 'translate(-50%, -50%)',
+              width: 'auto',
+              height: 'auto',
+            }
+          }
+        };
+        
+        setElements([...elements, newElement]);
+        
+        // Select the newly created element after a brief delay
+        setTimeout(() => {
+          handleElementSelect(newId);
+        }, 100);
+      },
+    },
   ];
 
   // Drag and drop functionality with Enter key handling
@@ -232,14 +536,12 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
 
-  
     const element = document.getElementById(id);
     if (!element) return;
-  
+
     const rect = element.getBoundingClientRect();
     const canvas = document.getElementById('canvas');
     if (!canvas) return;
-  
 
     const canvasRect = canvas.getBoundingClientRect();
     
@@ -262,52 +564,36 @@ function App() {
     });
   };
 
-  
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingElement) return;
-  
+
     const element = document.getElementById(draggingElement.id);
     if (!element) return;
-  
+
     const canvas = document.getElementById('canvas');
     if (!canvas) return;
-  
+
     const canvasRect = canvas.getBoundingClientRect();
     
     // Calculate new position based on mouse movement
     const newX = e.clientX - canvasRect.left - (draggingElement.width / 2);
     const newY = e.clientY - canvasRect.top - (draggingElement.height / 2);
-  
+
     // Constrain to canvas bounds
     const constrainedX = Math.max(0, Math.min(newX, canvasRect.width - draggingElement.width));
     const constrainedY = Math.max(0, Math.min(newY, canvasRect.height - draggingElement.height));
-  
+
     // Update element position
     element.style.transition = 'none';
     element.style.transform = `translate(${constrainedX}px, ${constrainedY}px)`;
   }, [draggingElement]);
-  
-  const handleMouseUp = useCallback(() => {
-    if (!draggingElement) return;
-  
-
-    const element = document.getElementById(draggingElement.id);
-    if (!element) {
-      setDraggingElement(null);
-      return;
-    }
-
-  
-    setDraggingElement(null);
-  }, [draggingElement, updateElementPosition]);
-  
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!draggingElement || e.key !== 'Enter') return;
     
     // Simulate a mouse up event to drop the element
     handleMouseUp();
   }, [draggingElement, handleMouseUp]);
-  
+
   useEffect(() => {
     if (draggingElement) {
       document.addEventListener('mousemove', handleMouseMove);
@@ -652,15 +938,138 @@ function App() {
     }
   };
 
+  const handleAddSubmitButtonForInput = (inputId: string, destinationTableId: string) => {
+    // Find the input element
+    const inputElement = elements.find(el => el.id === inputId);
+    if (!inputElement) return;
+    
+    // Check if input already has a submit button
+    if (inputElement.properties.submitButtonId) {
+      // If it does, just update the existing button's target table
+      const existingButtonId = inputElement.properties.submitButtonId;
+      const existingButton = elements.find(el => el.id === existingButtonId);
+      
+      if (existingButton) {
+        // Update the existing submit button to point to the new table
+        const updatedElements = elements.map(el => {
+          if (el.id === existingButtonId) {
+            return {
+              ...el,
+              properties: {
+                ...el.properties,
+                targetTable: destinationTableId,
+                storeSubmissions: true,
+              }
+            };
+          }
+          return el;
+        });
+        
+        setElements(updatedElements);
+        return;
+      }
+    }
+    
+    // Create a new submit button
+    const newButtonId = nanoid();
+    const buttonY = parseInt(inputElement.properties.layout?.top || "0") + 60; // Position below the input
+    
+    const newButton: any = {
+      id: newButtonId,
+      type: 'button',
+      properties: {
+        text: 'Submit',
+        message: 'Data saved!',
+        submitTarget: inputId,
+        submitAction: 'both',
+        storeSubmissions: true,
+        targetTable: destinationTableId,
+        style: {
+          backgroundColor: '#3b82f6',
+          textColor: '#ffffff',
+          padding: '8px 16px',
+          borderRadius: '4px',
+          fontSize: '14px',
+          messageBackgroundColor: '#2563eb',
+          messageTextColor: '#ffffff',
+        },
+        layout: {
+          position: 'absolute',
+          left: inputElement.properties.layout?.left,
+          top: `${buttonY}px`,
+          transform: `translate(0, 0)`,
+          width: 'auto',
+          height: 'auto',
+        }
+      }
+    };
+    
+    // Update the input to reference its submit button
+    const updatedElements = elements.map(el => {
+      if (el.id === inputId) {
+        return {
+          ...el,
+          properties: {
+            ...el.properties,
+            submitButtonId: newButtonId,
+          }
+        };
+      }
+      return el;
+    });
+    
+    // Add the new button to elements
+    setElements([...updatedElements, newButton]);
+    
+    // Show a notification
+    console.log(`Created submit button for input ${inputId} storing to table ${destinationTableId}`);
+  };
+
   const handleUpdateElement = (elementId: string, value: any) => {
     const element = elements.find(el => el.id === elementId);
     if (!element) return;
+
+    // Check if this is an input element with a destinationTable being set
+    const oldDestinationTable = element.properties.destinationTable;
+    const newDestinationTable = value.destinationTable;
+    
+    // If the destination table has changed and is not empty, add a submit button
+    if (newDestinationTable && newDestinationTable !== oldDestinationTable) {
+      // We need to wait for the element update to complete first
+      setTimeout(() => {
+        handleAddSubmitButtonForInput(elementId, newDestinationTable);
+      }, 100);
+    }
 
     // Handle different types of updates
     if (typeof value === 'object') {
       // If value is an object, update the properties directly
       const updatedElements = elements.map(el => {
         if (el.id === elementId) {
+          // Special handling for table data updates
+          if (value.data && el.type === 'table') {
+            console.log('Updating table data in handleUpdateElement:', value.data);
+            
+            // Create a new object to ensure React detects the change
+            const updatedElement = {
+              ...el,
+              properties: {
+                ...el.properties,
+                data: {
+                  headers: [...value.data.headers],
+                  rows: [...value.data.rows]
+                }
+              }
+            };
+            
+            // Force a UI refresh by setting the element state
+            setTimeout(() => {
+              setElementState(elementId, JSON.stringify(updatedElement.properties.data));
+            }, 0);
+            
+            return updatedElement;
+          }
+          
           return {
             ...el,
             properties: {
@@ -671,10 +1080,23 @@ function App() {
         }
         return el;
       });
+      
+      // Call the function to update all elements
       setElements(updatedElements);
+      
+      // Ensure the preview is updated by saving to localStorage
+      localStorage.setItem('dragndrop-project', JSON.stringify({
+        ...JSON.parse(localStorage.getItem('dragndrop-project') || '{}'),
+        elements: updatedElements
+      }));
     } else {
       // If value is a string, update the element state
       setElementState(elementId, value);
+    }
+
+    // If this is a table element, automatically update the data
+    if (element && element.type === 'table' && value.data) {
+      console.log('Updating table data in handleUpdateElement:', value.data);
     }
   };
 
@@ -682,6 +1104,23 @@ function App() {
     const element = elements.find(el => el.id === elementId);
     if (!element) return;
 
+    // Special handling for position-related properties to ensure preview updates
+    if (['left', 'top'].includes(property)) {
+      // Extract numeric value
+      const numericValue = parseFloat(value);
+      if (!isNaN(numericValue)) {
+        // If it's a position property, use wrappedUpdateElementPosition
+        if (property === 'left') {
+          wrappedUpdateElementPosition(elementId, numericValue, parseFloat(element.properties.layout?.top as string) || 0);
+          return;
+        } else if (property === 'top') {
+          wrappedUpdateElementPosition(elementId, parseFloat(element.properties.layout?.left as string) || 0, numericValue);
+          return;
+        }
+      }
+    }
+
+    // For other properties, use standard update logic
     const updatedElements = elements.map(el => {
       if (el.id === elementId) {
         return {
@@ -697,7 +1136,10 @@ function App() {
       }
       return el;
     });
+    
+    // Update elements and force preview refresh
     setElements(updatedElements);
+    setPositionUpdateCounter(prev => prev + 1);
   };
 
   const handleNewProject = () => {
@@ -780,6 +1222,9 @@ function App() {
     }
   }, []);
 
+  console.log("Canvas dimensions:", canvasWidth, canvasHeight);
+  console.log("Canvas dimensions for centering:", canvasWidth, "x", canvasHeight);
+
   return (
     <Router>
       <div className={`min-h-screen ${theme === "dark" ? "bg-gray-900 text-white" : "bg-gray-100"}`}>
@@ -813,13 +1258,64 @@ function App() {
             element={
               <>
                 <SignedIn>
-                  <div className="container mx-auto p-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Layers className="w-6 h-6" />
-                        DragNdrop Labs
-                      </h1>
-                      <div className="flex gap-2">
+                  <div className="container mx-auto p-4 pt-20">
+                    <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b shadow-sm">
+                      <div className="flex items-center justify-between px-4 py-2">
+                        {/* Left side - Logo and name */}
+                        <div className="flex items-center gap-4">
+                          <h1 className="text-xl font-semibold text-gray-800">DragNdrop Labs</h1>
+                        </div>
+                        
+                        {/* Center - Phone size selector */}
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-gray-600">Canvas Size:</span>
+                          <div className="relative">
+                            <select
+                              value={selectedPhoneType.name}
+                              onChange={(e) => {
+                                const selected = phonePresets.find(preset => preset.name === e.target.value);
+                                if (selected) {
+                                  setSelectedPhoneType(selected);
+                                }
+                              }}
+                              className="bg-white border border-gray-300 rounded-md py-1 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              {phonePresets.map(preset => (
+                                <option key={preset.name} value={preset.name}>
+                                  {preset.name} ({preset.width}×{preset.height})
+                                </option>
+                              ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                              <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          </div>
+                          
+                          {selectedPhoneType.name === 'Custom' && (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={customWidth}
+                                onChange={(e) => setCustomWidth(Number(e.target.value))}
+                                className="w-16 border border-gray-300 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Width"
+                              />
+                              <span className="text-gray-500">×</span>
+                              <input
+                                type="number"
+                                value={customHeight}
+                                onChange={(e) => setCustomHeight(Number(e.target.value))}
+                                className="w-16 border border-gray-300 rounded-md py-1 px-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Height"
+                              />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Right side - Actions */}
+                        <div className="flex items-center gap-2">
                         <div className="relative group">
                           <button
                             onClick={() => setShowDownloadOptions(true)}
@@ -917,6 +1413,7 @@ function App() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        </div>
                       </div>
                     </div>
 
@@ -948,8 +1445,8 @@ function App() {
                             <div className="space-y-2">
                               {toolboxItems.map((item) => (
                                 <div
-                                  key={item.type}
-                                  onClick={() => addElement(item.type as ElementType)}
+                                  key={item.id}
+                                  onClick={item.onClick}
                                   className={`flex items-center gap-2 p-3 rounded cursor-pointer
                                     ${
                                       theme === "dark"
@@ -957,8 +1454,8 @@ function App() {
                                         : "bg-gray-50 hover:bg-gray-100"
                                     }`}
                                 >
-                                  <item.icon className="w-4 h-4" />
-                                  {item.label}
+                                  {item.icon}
+                                  {item.name}
                                 </div>
                               ))}
                             </div>
@@ -985,36 +1482,35 @@ function App() {
                             
                             {/* Preview Area */}
                             <div className="flex-1 flex flex-col items-center">
-                              <PhoneTypeSelector
-                                selectedType={selectedPhoneType}
-                                onSelectType={(type) => {
-                                  setSelectedPhoneType(type);
-                                  if (type.name !== 'Custom') {
-                                    setCanvasDimensions(type.width, type.height);
-                                  }
+                          <PhoneTypeSelector
+                            selectedType={selectedPhoneType}
+                            onSelectType={(type) => {
+                              setSelectedPhoneType(type);
                                 }}
-                                customWidth={canvasWidth}
-                                customHeight={canvasHeight}
-                                onCustomWidthChange={(width) => setCanvasDimensions(width, canvasHeight)}
-                                onCustomHeightChange={(height) => setCanvasDimensions(canvasWidth, height)}
-                                elements={elements}
-                                elementStates={elementStates}
-                                onElementStateChange={setElementState}
-                                canvasWidth={canvasWidth}
-                                canvasHeight={canvasHeight}
+                                customWidth={customWidth}
+                                customHeight={customHeight}
+                                onCustomWidthChange={setCustomWidth}
+                                onCustomHeightChange={setCustomHeight}
+                            elements={elements}
+                            elementStates={elementStates}
+                            onElementStateChange={setElementState}
+                            canvasWidth={canvasWidth}
+                            canvasHeight={canvasHeight}
                                 togglePreviewMode={togglePreviewMode}
-                              />
+                          />
                             </div>
                           </div>
                         ) : (
                           <div
                             id="canvas"
-                            className={`rounded-lg shadow p-4 relative overflow-hidden ${
+                            className={`rounded-lg shadow p-4 relative overflow-hidden mx-auto ${
                               theme === "dark" ? "bg-gray-800" : "bg-white"
                             }`}
                             style={{
                               width: `${canvasWidth}px`,
                               height: `${canvasHeight}px`,
+                              marginTop: "20px",
+                              transform: "none" // Ensure no transform is applied to the canvas
                             }}
                             onClick={handleCanvasClick}
                           >
@@ -1048,13 +1544,17 @@ function App() {
                                 }}
                               >
                                 <div style={{ width: element.properties.layout?.width || "auto" }}>
-                                  <PreviewElement
+                                  <MemoizedPreviewElement
                                     element={element}
                                     value={elementStates[element.id]}
                                     onChange={(value) => setElementState(element.id, value)}
                                     isPreviewMode={isPreviewMode}
                                     elements={elements}
+
+                                    elementStates={elementStates}
                                     setElementState={setElementState}
+                                    updateElements={setElements}
+
                                   />
                                 </div>
                               </div>
@@ -1144,13 +1644,18 @@ function PreviewElement({
   value,
   onChange,
   isPreviewMode,
-  elements,
-  setElementState
+
+  elements = [],
+  elementStates = {},
+  setElementState = () => {},
+  updateElements = () => {},
+
 }: {
   element: any;
   value?: string;
   onChange: (value: string) => void;
   isPreviewMode: boolean;
+
   elements: Array<{
     id: string;
     type: string;
@@ -1162,6 +1667,7 @@ function PreviewElement({
     };
   }>;
   setElementState: (id: string, value: string) => void;
+
 }) {
   const { addElement, updateElement } = useStore();
 
@@ -1177,6 +1683,13 @@ function PreviewElement({
     borderWidth: element.properties.style?.borderWidth,
     borderColor: element.properties.style?.borderColor,
   };
+
+  // Use React.useEffect to ensure the preview updates when element properties change
+  React.useEffect(() => {
+    if (element.type === 'table' && isPreviewMode) {
+      console.log('Table element updated in preview:', element.id);
+    }
+  }, [element, isPreviewMode]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1200,39 +1713,256 @@ function PreviewElement({
 
   switch (element.type) {
     case "button":
+      // Add a console log for debugging
+      const [showMessage, setShowMessage] = React.useState(false);
+      const [submitMessage, setSubmitMessage] = React.useState("");
+      
+      // Auto-hide message after 3 seconds
+      React.useEffect(() => {
+        if (showMessage || submitMessage) {
+          const timer = setTimeout(() => {
+            setShowMessage(false);
+            setSubmitMessage("");
+          }, 3000);
+          return () => clearTimeout(timer);
+        }
+      }, [showMessage, submitMessage]);
+
+      // Find target input if this is a submit button
+      const targetInput = element.properties.submitTarget 
+        ? elements.find(el => el.id === element.properties.submitTarget)
+        : null;
+      
+      // Determine button type/role
+      const isNavLink = Boolean(element.properties.href);
+      const isSubmitButton = Boolean(element.properties.submitTarget);
+      
+      // Add this to the onClick handler right after handling the input submission
+      // Check if this is a direct submit from an input with a destination table
+      const inputElement = element.properties.submitTarget 
+        ? elements.find(el => el.id === element.properties.submitTarget)
+        : null;
+
+      if (inputElement && inputElement.properties.destinationTable) {
+        const destinationTableId = inputElement.properties.destinationTable;
+        const targetTable = elements.find(el => el.id === destinationTableId);
+        
+        // This input has a direct destination table - store data there
+        if (targetTable && targetTable.type === 'table') {
+          // Get current table data or initialize if empty
+          let tableData = targetTable.properties.data || { headers: ['Timestamp', 'Input Value'], rows: [] };
+          
+          // Add new row with timestamp and input value
+          const timestamp = new Date().toLocaleString();
+          const inputValue = elementStates[element.properties.submitTarget] || "";
+          const newRow = [timestamp, inputValue];
+          
+          // Update the table data
+          const updatedData = {
+            headers: tableData.headers,
+            rows: [...tableData.rows, newRow]
+          };
+          
+          // Update the table element with the new data
+          const updatedTableElement = {
+            ...targetTable,
+            properties: {
+              ...targetTable.properties,
+              data: updatedData
+            }
+          };
+          
+          // Find the index of the target table in the elements array
+          const tableIndex = elements.findIndex(el => el.id === destinationTableId);
+          
+          // Create a new elements array with the updated table
+          if (tableIndex !== -1) {
+            const newElements = [...elements];
+            newElements[tableIndex] = updatedTableElement;
+            
+            // Call the function to update all elements
+            updateElements(newElements);
+            
+            // Also update the element state for the table
+            setElementState(destinationTableId, JSON.stringify(updatedData));
+            
+            console.log(`Auto-stored submission in table ${destinationTableId}:`, newRow);
+            
+            // Show a success message specifically for auto-store
+            setSubmitMessage(`Saved to table!`);
+          }
+        }
+      }
+      
       return (
+        <div className="relative group">
+          {!isPreviewMode && (
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              {isNavLink && (
+                <div className="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded-md whitespace-nowrap">
+                  Link: {element.properties.href?.substring(0, 15)}{element.properties.href?.length > 15 ? '...' : ''}
+                </div>
+              )}
+              {isSubmitButton && (
+                <div className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-md whitespace-nowrap">
+                  Submits: {targetInput?.properties.placeholder || targetInput?.id?.slice(0, 8) || 'Unknown input'}
+                </div>
+              )}
+              {!isNavLink && !isSubmitButton && (
+                <div className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-md whitespace-nowrap">
+                  Basic Button
+                </div>
+              )}
+            </div>
+          )}
         <button
           onClick={() => {
-            if (isPreviewMode && element.properties.href) {
+              if (isPreviewMode) {
+                // Handle URL links
+                if (element.properties.href) {
               window.open(element.properties.href, '_blank');
-            }
-          }}
-          type={element.properties.type || 'button'}
+                }
+                
+                // Handle standard click messages
+                if (element.properties.message) {
+                  setShowMessage(true);
+                }
+                
+                // Handle form submission
+                if (element.properties.submitTarget) {
+                  const targetState = elementStates[element.properties.submitTarget] || "";
+                  console.log(`Submitting input ${element.properties.submitTarget} with value:`, targetState);
+                  
+                  // Handle different submit actions
+                  if (element.properties.submitAction === 'alert' || element.properties.submitAction === 'both') {
+                    setSubmitMessage(`Submitted: ${targetState}`);
+                  }
+                  
+                  // Store in table if enabled
+                  if (element.properties.storeSubmissions && element.properties.targetTable) {
+                    const targetTableId = element.properties.targetTable;
+                    const targetTable = elements.find(el => el.id === targetTableId);
+                    
+                    if (targetTable && targetTable.type === 'table') {
+                      // Get current table data or initialize if empty
+                      let tableData = targetTable.properties.data || { headers: ['Timestamp', 'Input Value'], rows: [] };
+                      
+                      // Add new row with timestamp and input value
+                      const timestamp = new Date().toLocaleString();
+                      const newRow = [timestamp, targetState];
+                      
+                      // Update the table data
+                      const updatedData = {
+                        headers: tableData.headers,
+                        rows: [...tableData.rows, newRow]
+                      };
+                      
+                      // Update the table element with the new data
+                      const updatedTableElement = {
+                        ...targetTable,
+                        properties: {
+                          ...targetTable.properties,
+                          data: updatedData
+                        }
+                      };
+                      
+                      // Find the index of the target table in the elements array
+                      const tableIndex = elements.findIndex(el => el.id === targetTableId);
+                      
+                      // Create a new elements array with the updated table
+                      if (tableIndex !== -1) {
+                        const newElements = [...elements];
+                        newElements[tableIndex] = updatedTableElement;
+                        
+                        // Call the function to update all elements
+                        updateElements(newElements);
+                        
+                        // Also update the element state for the table
+                        setElementState(targetTableId, JSON.stringify(updatedData));
+                        
+                        console.log(`Stored submission in table ${targetTableId}:`, updatedData);
+                      }
+                    }
+                  }
+                  
+                  // Clear the input if specified
+                  if (element.properties.submitAction === 'clear' || element.properties.submitAction === 'both') {
+                    setElementState(element.properties.submitTarget, "");
+                  }
+                }
+              }
+            }}
+            type="button"
           disabled={element.properties.disabled || false}
-          className={`px-4 py-2 font-medium rounded relative overflow-hidden group ${getInteractiveClasses()}`}
-          style={{
-            ...style,
-            cursor: isPreviewMode && element.properties.href ? 'pointer' : undefined,
-            backgroundColor: style.backgroundColor || '#3B82F6',
-            color: style.color || 'white',
-            boxShadow: isPreviewMode ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-          }}
-          title={isPreviewMode && element.properties.href ? element.properties.href : undefined}
-        >
-          {/* Hover effect overlay */}
-          {isPreviewMode && (
-            <span className="absolute inset-0 w-full h-full bg-white opacity-0 group-hover:opacity-10 transition-opacity"></span>
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer transition-all"
+            style={{
+              ...style,
+              backgroundColor: style.backgroundColor || '#3B82F6',
+              color: style.color || 'white',
+              borderRadius: style.borderRadius || '0.25rem',
+              padding: style.padding || '0.5rem 1rem',
+              cursor: isPreviewMode && (element.properties.href || element.properties.message || element.properties.submitTarget) ? 'pointer' : undefined,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}
+            title={
+              isPreviewMode 
+                ? element.properties.href 
+                  ? element.properties.href 
+                  : element.properties.submitTarget 
+                    ? `Submit ${targetInput?.properties.placeholder || 'form'}`
+                    : undefined
+                : undefined
+            }
+          >
+            <span className="relative flex items-center justify-center gap-1">
+          {value || element.properties.text}
+              {isPreviewMode && element.properties.href && (
+                <svg className="w-3 h-3 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              )}
+              {isPreviewMode && element.properties.submitTarget && (
+                <svg className="w-3 h-3 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </span>
+        </button>
+          
+          {/* Message tooltip */}
+          {showMessage && element.properties.message && (
+            <div 
+              className="absolute left-1/2 -translate-x-1/2 -top-12 px-3 py-2 rounded shadow-lg z-50 whitespace-nowrap"
+              style={{
+                backgroundColor: element.properties.style?.messageBackgroundColor || '#333',
+                color: element.properties.style?.messageTextColor || '#fff',
+                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
+              {element.properties.message}
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px]" 
+                style={{ borderTopColor: element.properties.style?.messageBackgroundColor || '#333' }}>
+              </div>
+            </div>
           )}
           
-          <span className="relative flex items-center justify-center gap-1">
-            {value || element.properties.text}
-            {isPreviewMode && element.properties.href && (
-              <svg className="w-3 h-3 ml-1 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            )}
-          </span>
-        </button>
+          {/* Submit message tooltip */}
+          {submitMessage && (
+            <div 
+              className="absolute left-1/2 -translate-x-1/2 -top-12 px-3 py-2 rounded shadow-lg z-50 whitespace-nowrap"
+              style={{
+                backgroundColor: element.properties.style?.messageBackgroundColor || '#22c55e',
+                color: element.properties.style?.messageTextColor || '#fff',
+                animation: 'fadeIn 0.3s ease-out',
+              }}
+            >
+              {submitMessage}
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px]" 
+                style={{ borderTopColor: element.properties.style?.messageBackgroundColor || '#22c55e' }}>
+              </div>
+            </div>
+          )}
+        </div>
       );
     case "text":
       return (
@@ -1254,7 +1984,13 @@ function PreviewElement({
         </div>
       );
     case "input":
+      // Convert undefined values to empty string for consistency
+      const inputValue = value !== undefined ? value : "";
+      const [hasInteracted, setHasInteracted] = React.useState(false);
+      
+      // Create a controlled component that uses the state value
       return (
+
         <div className="relative flex flex-col gap-2">
           <div className="flex gap-2">
             <input
@@ -1318,27 +2054,69 @@ function PreviewElement({
           {isPreviewMode && (
             <div className="absolute inset-0 pointer-events-none rounded" 
               style={{boxShadow: '0 0 0 1px rgba(0,0,0,0.05)', opacity: 0.5}}></div>
+
           )}
         </div>
       );
     case "table":
+      // Log the element for debugging
+      console.log('Rendering table element:', element);
+      console.log('Table properties:', element.properties);
+      console.log('Table data:', element.properties.data);
+      
+      // Try to parse the value if it's a string (it might be a JSON string of table data)
+      let tableData = element.properties.data;
+      
+      if (value && typeof value === 'string') {
+        try {
+          const parsedData = JSON.parse(value);
+          if (parsedData && parsedData.headers && parsedData.rows) {
+            console.log('Using parsed table data from value:', parsedData);
+            tableData = parsedData;
+          }
+        } catch (e) {
+          console.error('Error parsing table data from value:', e);
+        }
+      }
+      
+      // Default headers and rows if no data is available
+      const defaultHeaders = ['Header 1', 'Header 2', 'Header 3'];
+      const defaultRows = [
+        ['Data 1', 'Data 2', 'Data 3'],
+        ['Data 4', 'Data A', 'Data 5']
+      ];
+      
+      // Use existing data or defaults
+      const headers = tableData?.headers || defaultHeaders;
+      const rows = tableData?.rows || defaultRows;
+      
+      console.log('Using headers:', headers);
+      console.log('Using rows:', rows);
+      
       return (
-        <div className="overflow-hidden rounded-lg shadow-sm" style={style}>
+        <div 
+          className="overflow-hidden rounded-lg shadow-sm border border-gray-200" 
+          style={{
+            ...style,
+            backgroundColor: style.backgroundColor || '#ffffff',
+            width: element.properties.layout?.width || '400px'
+          }}
+        >
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {element.properties.data?.headers.map((header: string, index: number) => (
-                  <th key={index} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {headers.map((header: string, index: number) => (
+                  <th key={`header-${index}-${header}`} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {header}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {element.properties.data?.rows.map((row: string[], rowIndex: number) => (
-                <tr key={rowIndex} className={isPreviewMode ? 'hover:bg-gray-50 transition-colors' : ''}>
+              {rows.map((row: string[], rowIndex: number) => (
+                <tr key={`row-${rowIndex}`} className={isPreviewMode ? 'hover:bg-gray-50 transition-colors' : ''}>
                   {row.map((cell: string, cellIndex: number) => (
-                    <td key={cellIndex} className="px-6 py-4 whitespace-nowrap">
+                    <td key={`cell-${rowIndex}-${cellIndex}`} className="px-6 py-4 whitespace-nowrap">
                       {cell}
                     </td>
                   ))}
@@ -1358,9 +2136,9 @@ function PreviewElement({
         >
           {value ? (
             <div className="relative">
-              <img
-                src={value}
-                alt="Selected"
+            <img
+              src={value}
+              alt="Selected"
                 className="w-full h-auto"
               />
               {isPreviewMode && (
@@ -1376,12 +2154,12 @@ function PreviewElement({
             </div>
           )}
           {!isPreviewMode && (
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelect}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          />
           )}
         </div>
       );
@@ -1420,41 +2198,41 @@ function PreviewElement({
           style={style}
         >
           {!isPreviewMode && (
-            <div className="absolute top-0 right-0 flex space-x-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                className="w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize"
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  const startX = e.clientX;
-                  const startY = e.clientY;
-                  const startWidth = element.properties.layout?.width || '100%';
-                  const startHeight = element.properties.layout?.height || 'auto';
+          <div className="absolute top-0 right-0 flex space-x-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              className="w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize"
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startWidth = element.properties.layout?.width || '100%';
+                const startHeight = element.properties.layout?.height || 'auto';
 
-                  const handleMouseMove = (e: MouseEvent) => {
-                    const deltaX = e.clientX - startX;
-                    const deltaY = e.clientY - startY;
-                    const newWidth = `calc(${startWidth} + ${deltaX}px)`;
-                    const newHeight = `calc(${startHeight} + ${deltaY}px)`;
-                    onChange(JSON.stringify({
-                      ...element.properties,
-                      layout: {
-                        ...element.properties.layout,
-                        width: newWidth,
-                        height: newHeight
-                      }
-                    }));
-                  };
+                const handleMouseMove = (e: MouseEvent) => {
+                  const deltaX = e.clientX - startX;
+                  const deltaY = e.clientY - startY;
+                  const newWidth = `calc(${startWidth} + ${deltaX}px)`;
+                  const newHeight = `calc(${startHeight} + ${deltaY}px)`;
+                  onChange(JSON.stringify({
+                    ...element.properties,
+                    layout: {
+                      ...element.properties.layout,
+                      width: newWidth,
+                      height: newHeight
+                    }
+                  }));
+                };
 
-                  const handleMouseUp = () => {
-                    document.removeEventListener('mousemove', handleMouseMove);
-                    document.removeEventListener('mouseup', handleMouseUp);
-                  };
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
 
-                  document.addEventListener('mousemove', handleMouseMove);
-                  document.addEventListener('mouseup', handleMouseUp);
-                }}
-              />
-            </div>
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+            />
+          </div>
           )}
           <div className={`text-center ${isPreviewMode ? 'text-gray-400 text-sm' : 'text-gray-500'}`}>
             {element.properties.text || (isPreviewMode ? "Container" : "Container (Drag elements here)")}
@@ -1465,5 +2243,80 @@ function PreviewElement({
       return null;
   }
 }
+
+// Use React.memo with a custom comparison function to ensure proper re-rendering
+const MemoizedPreviewElement = React.memo(PreviewElement, (prevProps, nextProps) => {
+  // Always log preview element updates in debug mode
+  console.log('Comparing PreviewElement props:', {
+    elementId: nextProps.element.id,
+    type: nextProps.element.type,
+    prevValue: prevProps.value,
+    nextValue: nextProps.value,
+    isPreviewMode: nextProps.isPreviewMode
+  });
+  
+  // Always re-render input elements when value changes
+  if (nextProps.element.type === 'input') {
+    if (prevProps.value !== nextProps.value) {
+      console.log('Input value changed, forcing re-render');
+      return false; // Not equal, force re-render
+    }
+  }
+  
+  // Deep comparison for table data
+  if (prevProps.element.type === 'table' && nextProps.element.type === 'table') {
+    try {
+      const prevData = typeof prevProps.value === 'string' 
+        ? JSON.parse(prevProps.value || '{"headers":[],"rows":[]}')
+        : (prevProps.element.properties.data || {"headers":[],"rows":[]});
+      
+      const nextData = typeof nextProps.value === 'string'
+        ? JSON.parse(nextProps.value || '{"headers":[],"rows":[]}')
+        : (nextProps.element.properties.data || {"headers":[],"rows":[]});
+      
+      // Compare headers and rows
+      const headersEqual = JSON.stringify(prevData.headers) === JSON.stringify(nextData.headers);
+      const rowsEqual = JSON.stringify(prevData.rows) === JSON.stringify(nextData.rows);
+      
+      if (!headersEqual || !rowsEqual) {
+        return false;
+      }
+    } catch (e) {
+      // If JSON parsing fails, consider them different
+      return false;
+    }
+  }
+  
+  // Special handling for buttons
+  if (prevProps.element.type === 'button' && nextProps.element.type === 'button') {
+    // Check if message or message styling has changed
+    if (
+      prevProps.element.properties.message !== nextProps.element.properties.message ||
+      prevProps.element.properties.style?.messageBackgroundColor !== nextProps.element.properties.style?.messageBackgroundColor ||
+      prevProps.element.properties.style?.messageTextColor !== nextProps.element.properties.style?.messageTextColor
+    ) {
+      return false;
+    }
+  }
+
+  // Ensure element position or layout hasn't changed
+  if (
+    prevProps.element.properties.layout?.left !== nextProps.element.properties.layout?.left ||
+    prevProps.element.properties.layout?.top !== nextProps.element.properties.layout?.top ||
+    prevProps.element.properties.layout?.transform !== nextProps.element.properties.layout?.transform ||
+    prevProps.element.properties.layout?.width !== nextProps.element.properties.layout?.width ||
+    prevProps.element.properties.layout?.height !== nextProps.element.properties.layout?.height ||
+    prevProps.element.properties.layout?.zIndex !== nextProps.element.properties.layout?.zIndex
+  ) {
+    return false;
+  }
+  
+  // Default shallow comparison for other props
+  return (
+    prevProps.element.id === nextProps.element.id &&
+    prevProps.value === nextProps.value &&
+    prevProps.isPreviewMode === nextProps.isPreviewMode
+  );
+});
 
 export default App;

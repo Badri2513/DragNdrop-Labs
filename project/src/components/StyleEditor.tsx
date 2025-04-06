@@ -131,37 +131,56 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
             <div className={`p-3 ${sectionBg} rounded-lg`}>
               <h3 className="text-sm font-semibold mb-2">Dimensions</h3>
               
-              <div className="mb-3">
-                <label className="block text-sm mb-1">Font Size</label>
-                <input
-                  type="text"
-                  value={localState.style?.fontSize || '16px'}
-                  onChange={(e) => handleChange('style', { ...localState.style, fontSize: e.target.value })}
-                  className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                  placeholder="e.g. 16px or 1rem"
-                />
-              </div>
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold mb-2">Text Properties</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Font Size</label>
+                      <input
+                        type="number"
+                        value={localState.style?.fontSize || '16px'}
+                        onChange={(e) => handleChange('style', { ...localState.style, fontSize: e.target.value })}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Font Weight</label>
+                      <select
+                        value={localState.style?.fontWeight || 'normal'}
+                        onChange={(e) => handleChange('style', { ...localState.style, fontWeight: e.target.value })}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                      </select>
+            </div>
+          </div>
+        </div>
 
-              <div className="mb-3">
-                <label className="block text-sm mb-1">Padding</label>
-                <input
-                  type="text"
-                  value={localState.style?.padding || '10px'}
-                  onChange={(e) => handleChange('style', { ...localState.style, padding: e.target.value })}
-                  className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                  placeholder="e.g. 10px"
-                />
-              </div>
-
-              <div className="mb-3">
-                <label className="block text-sm mb-1">Border Radius</label>
-                <input
-                  type="text"
-                  value={localState.style?.borderRadius || '4px'}
-                  onChange={(e) => handleChange('style', { ...localState.style, borderRadius: e.target.value })}
-                  className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                  placeholder="e.g. 4px"
-                />
+                <div className="bg-gray-50 p-4 rounded-lg shadow">
+                  <h3 className="text-lg font-semibold mb-2">Layout Properties</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Width</label>
+                      <input
+                        type="text"
+                        value={localState.layout?.width || 'auto'}
+                        onChange={(e) => handleChange('layout', { ...localState.layout, width: e.target.value })}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Height</label>
+                      <input
+                        type="text"
+                        value={localState.layout?.height || 'auto'}
+                        onChange={(e) => handleChange('layout', { ...localState.layout, height: e.target.value })}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -202,8 +221,8 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
                       style={{ backgroundColor: localState.style?.borderColor || '#000000' }}
                     />
                   </div>
-                  <input
-                    type="color"
+          <input
+            type="color"
                     value={localState.style?.borderColor || '#000000'}
                     onChange={(e) => handleChange('style', { ...localState.style, borderColor: e.target.value })}
                     className="w-full h-8 p-0 rounded"
@@ -236,34 +255,6 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="mb-3">
-                  <label className="block text-sm mb-1">Width</label>
-                  <input
-                    type="text"
-                    value={localState.layout?.width || 'auto'}
-                    onChange={(e) => handleChange('layout', { ...localState.layout, width: e.target.value })}
-                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                    placeholder="e.g. 200px or 50%"
-                  />
-                </div>
-
-                <div className="mb-3">
-                  <label className="block text-sm mb-1">Height</label>
-                  <input
-                    type="text"
-                    value={localState.layout?.height || 'auto'}
-                    onChange={(e) => handleChange('layout', { ...localState.layout, height: e.target.value })}
-                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                    placeholder="e.g. 200px or auto"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className={`p-3 ${sectionBg} rounded-lg`}>
-              <h3 className="text-sm font-semibold mb-2">Placement</h3>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="mb-3">
                   <label className="block text-sm mb-1">Left</label>
                   <input
                     type="text"
@@ -285,16 +276,22 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
                   />
                 </div>
               </div>
+            </div>
 
-              <div className="mb-3">
-                <label className="block text-sm mb-1">Z-Index</label>
-                <input
-                  type="number"
-                  value={localState.layout?.zIndex || 1}
-                  onChange={(e) => handleChange('layout', { ...localState.layout, zIndex: parseInt(e.target.value) })}
-                  className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                  min="1"
-                />
+            <div className={`p-3 ${sectionBg} rounded-lg`}>
+              <h3 className="text-sm font-semibold mb-2">Placement</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="mb-3">
+                  <label className="block text-sm mb-1">Z-Index</label>
+                  <input
+                    type="number"
+                    value={localState.layout?.zIndex || 1}
+                    onChange={(e) => handleChange('layout', { ...localState.layout, zIndex: parseInt(e.target.value) })}
+                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
+                    min="1"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -347,17 +344,6 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
         </div>
 
                 <div className="mb-3">
-                  <label className="block text-sm mb-1">Link URL</label>
-          <input
-            type="text"
-                    value={localState.href || ''}
-                    onChange={(e) => handleChange('href', e.target.value)}
-                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                    placeholder="https://example.com"
-          />
-        </div>
-
-                <div className="mb-3">
                   <label className="flex items-center gap-2">
               <input
                       type="checkbox"
@@ -402,6 +388,7 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
                 </div>
 
                 <div className="mb-3">
+
                   <label className="block text-sm mb-1">Destination Table</label>
                   <select
                     value={localState.destinationTableId || ''}
@@ -417,8 +404,185 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
                         </option>
                       ))}
                   </select>
+
                 </div>
               </div>
+            )}
+
+            {element.type === 'button' && (
+              <div className={`p-3 ${sectionBg} rounded-lg`}>
+                <h3 className="text-sm font-semibold mb-2">Button Message</h3>
+                
+                <div className="mb-3">
+                  <label className="block text-sm mb-1">Message Text (shown on click)</label>
+                  <input
+                    type="text"
+                    value={localState.message || ''}
+                    onChange={(e) => handleChange('message', e.target.value)}
+                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
+                    placeholder="Enter message to show when clicked..."
+                  />
+                </div>
+                
+                <div className="mb-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-sm">Message Background</label>
+                    <div 
+                      className="w-6 h-6 rounded border shadow" 
+                      style={{ backgroundColor: localState.style?.messageBackgroundColor || '#333333' }}
+                    />
+                  </div>
+                  <input
+                    type="color"
+                    value={localState.style?.messageBackgroundColor || '#333333'}
+                    onChange={(e) => handleChange('style', { ...localState.style, messageBackgroundColor: e.target.value })}
+                    className="w-full h-8 p-0 rounded"
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-sm">Message Text Color</label>
+                    <div 
+                      className="w-6 h-6 rounded border shadow" 
+                      style={{ backgroundColor: localState.style?.messageTextColor || '#ffffff' }}
+                    />
+                  </div>
+                  <input
+                    type="color"
+                    value={localState.style?.messageTextColor || '#ffffff'}
+                    onChange={(e) => handleChange('style', { ...localState.style, messageTextColor: e.target.value })}
+                    className="w-full h-8 p-0 rounded"
+                  />
+                </div>
+              </div>
+            )}
+
+            {element.type === 'button' && (
+              <div className={`p-3 ${sectionBg} rounded-lg`}>
+                <h3 className="text-sm font-semibold mb-2">URL Link</h3>
+                
+                <div className="mb-3">
+                  <label className="block text-sm mb-1">URL</label>
+                  <input
+                    type="text"
+                    value={localState.href || ''}
+                    onChange={(e) => handleChange('href', e.target.value)}
+                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
+                    placeholder="e.g. https://example.com"
+                  />
+                </div>
+              </div>
+            )}
+
+            {element.type === 'button' && (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Button Text</label>
+          <input
+            type="text"
+                    value={localState.text || ''}
+                    onChange={(e) => handleChange('text', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">URL Link</label>
+                  <input
+                    type="text"
+                    value={localState.href || ''}
+                    onChange={(e) => handleChange('href', e.target.value)}
+                    placeholder="https://example.com"
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Message when clicked</label>
+              <input
+                type="text"
+                    value={localState.message || ''}
+                    onChange={(e) => handleChange('message', e.target.value)}
+                    placeholder="Button clicked!"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1">Submit Input</label>
+                  <select
+                    value={localState.submitTarget || ''}
+                    onChange={(e) => handleChange('submitTarget', e.target.value)}
+                    className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Not a submit button</option>
+                    {elements
+                      .filter(el => el.type === 'input')
+                      .map(input => (
+                        <option key={input.id} value={input.id}>
+                          {input.properties.placeholder || input.properties.text || `Input ${input.id.slice(0, 4)}`}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                
+                {localState.submitTarget && (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">After Submit Action</label>
+              <select
+                      value={localState.submitAction || 'clear'}
+                      onChange={(e) => handleChange('submitAction', e.target.value)}
+                      className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="clear">Clear input after submit</option>
+                      <option value="alert">Show message</option>
+                      <option value="both">Clear and show message</option>
+                      <option value="none">Do nothing</option>
+              </select>
+            </div>
+                )}
+
+                {localState.submitTarget && (
+                  <div className="mb-4">
+                    <div className="flex items-center mb-2">
+                      <input
+                        type="checkbox"
+                        id="storeSubmissions"
+                        checked={localState.storeSubmissions || false}
+                        onChange={(e) => handleChange('storeSubmissions', e.target.checked)}
+                        className="mr-2 h-4 w-4 text-blue-500 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="storeSubmissions" className="text-sm font-medium">
+                        Store submissions in table
+                      </label>
+                    </div>
+                    
+                    {localState.storeSubmissions && (
+                      <select
+                        value={localState.targetTable || ''}
+                        onChange={(e) => handleChange('targetTable', e.target.value)}
+                        className="w-full mt-2 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select a table</option>
+                        {elements
+                          .filter(el => el.type === 'table')
+                          .map(table => (
+                            <option key={table.id} value={table.id}>
+                              {`Table ${table.id.slice(0, 6)}`}
+                            </option>
+                          ))}
+                      </select>
+                    )}
+                    
+                    {localState.storeSubmissions && !elements.some(el => el.type === 'table') && (
+                      <div className="mt-2 text-xs text-orange-500">
+                        No tables found. Please add a table to store data.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -462,20 +626,6 @@ const StyleEditor: React.FC<StyleEditorProps> = ({ elementId, onUpdate, theme, o
               <div className={`p-3 ${sectionBg} rounded-lg`}>
                 <h3 className="text-sm font-semibold mb-2">Text Formatting</h3>
                 
-                <div className="mb-3">
-                  <label className="block text-sm mb-1">Font Weight</label>
-                  <select
-                    value={localState.style?.fontWeight || 'normal'}
-                    onChange={(e) => handleChange('style', { ...localState.style, fontWeight: e.target.value })}
-                    className={`w-full p-2 rounded border ${inputBg} ${inputBorder}`}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="bold">Bold</option>
-                    <option value="lighter">Lighter</option>
-                    <option value="bolder">Bolder</option>
-                  </select>
-                </div>
-
                 <div className="mb-3">
                   <label className="block text-sm mb-1">Text Align</label>
             <select
