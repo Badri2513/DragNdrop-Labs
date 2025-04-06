@@ -213,10 +213,12 @@ function App() {
     { type: "container", icon: Group, label: "Container" },
   ];
 
+  // Drag and drop functionality with Enter key handling
   const handleMouseDown = (e: React.MouseEvent, id: string) => {
     if (isPreviewMode) return;
     e.preventDefault();
     e.stopPropagation();
+
   
     const element = document.getElementById(id);
     if (!element) return;
@@ -225,12 +227,19 @@ function App() {
     const canvas = document.getElementById('canvas');
     if (!canvas) return;
   
+
     const canvasRect = canvas.getBoundingClientRect();
     
     // Get the current position relative to canvas
     const x = rect.left - canvasRect.left;
     const y = rect.top - canvasRect.top;
     
+    // Store initial mouse position in the component, not in the state
+    // You could use a ref for this
+    const mouseStartX = e.clientX;
+    const mouseStartY = e.clientY;
+    
+    // Only include properties that are defined in your type
     setDraggingElement({
       id,
       x,
@@ -239,6 +248,7 @@ function App() {
       height: rect.height
     });
   };
+
   
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingElement) return;
@@ -267,29 +277,13 @@ function App() {
   const handleMouseUp = useCallback(() => {
     if (!draggingElement) return;
   
+
     const element = document.getElementById(draggingElement.id);
-    if (element) {
-      // Get current position
-      const rect = element.getBoundingClientRect();
-      const canvas = document.getElementById('canvas');
-      if (canvas) {
-        const canvasRect = canvas.getBoundingClientRect();
-        const x = rect.left - canvasRect.left;
-        const y = rect.top - canvasRect.top;
-        
-        // Snap to grid
-        const gridSize = 10;
-        const snappedX = Math.round(x / gridSize) * gridSize;
-        const snappedY = Math.round(y / gridSize) * gridSize;
-        
-        // Update element position with smooth transition
-        element.style.transition = 'transform 0.2s ease-out';
-        element.style.transform = `translate(${snappedX}px, ${snappedY}px)`;
-        
-        // Update the element's position in the store
-        updateElementPosition(draggingElement.id, snappedX, snappedY);
-      }
+    if (!element) {
+      setDraggingElement(null);
+      return;
     }
+
   
     setDraggingElement(null);
   }, [draggingElement, updateElementPosition]);
@@ -314,6 +308,7 @@ function App() {
       };
     }
   }, [draggingElement, handleMouseMove, handleMouseUp, handleKeyDown]);
+
 
   const handleSnap = (x: number, y: number) => {
     if (!draggingElement) return;
